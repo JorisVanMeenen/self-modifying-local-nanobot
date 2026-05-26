@@ -6,6 +6,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const target = env.NANOBOT_API_URL ?? "http://127.0.0.1:8765";
   const wsTarget = target.replace(/^http/, "ws");
+  const hmrPath = "/__nanobot_vite_hmr";
 
   return {
     plugins: [react()],
@@ -60,13 +61,12 @@ export default defineConfig(({ mode }) => {
       host: "127.0.0.1",
       port: 5173,
       strictPort: true,
-      // Move Vite's HMR socket to a dedicated port so it doesn't collide with
-      // the ``/`` proxy below (Vite HMR and the nanobot ws upgrade both sit on
-      // the root path, which triggers spurious write-after-end errors as each
-      // side tries to close the other's socket).
+      // Keep Vite's HMR socket on a dedicated path so it doesn't collide with
+      // the ``/`` proxy below (Vite HMR and the nanobot ws upgrade otherwise
+      // both sit on the root path).
       hmr: {
         host: "127.0.0.1",
-        port: 5174,
+        path: hmrPath,
       },
       proxy: {
         "/webui": { target, changeOrigin: true },
@@ -81,8 +81,12 @@ export default defineConfig(({ mode }) => {
           target: wsTarget,
           ws: true,
           changeOrigin: true,
-          bypass: (req) =>
-            req.headers.upgrade === "websocket" ? undefined : req.url,
+          bypass: (req) => {
+            if (req.url?.startsWith(hmrPath)) {
+              return req.url;
+            }
+            return req.headers.upgrade === "websocket" ? undefined : req.url;
+          },
         },
       },
     },
