@@ -431,6 +431,7 @@
     "groups": {
       "pinned": "Pinned",
       "all": "Chats",
+      "projects": "Projects",
       "today": "Today",
       "yesterday": "Yesterday",
       "earlier": "Earlier",

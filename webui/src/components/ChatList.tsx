@@ -7,6 +7,7 @@ import {
 import {
   Archive,
   ArchiveRestore,
+  Folder,
   MoreHorizontal,
   Pencil,
   Pin,
@@ -51,6 +52,15 @@ interface ChatListProps {
   emptyLabel?: string;
 }
 
+interface SessionGroup {
+  id: string;
+  label: string;
+  sessions: ChatSummary[];
+  kind?: "project";
+  projectPath?: string;
+  updatedAt?: string | null;
+}
+
 export const ChatList = memo(function ChatList({
   sessions,
   activeKey,
@@ -82,6 +92,7 @@ export const ChatList = memo(function ChatList({
     yesterday: t("chat.groups.yesterday"),
     earlier: t("chat.groups.earlier"),
     archived: t("chat.groups.archived"),
+    projects: t("chat.groups.projects"),
     fallbackTitle: t("chat.newChat"),
   }), [t]);
   const groups = useMemo(
@@ -146,10 +157,18 @@ export const ChatList = memo(function ChatList({
     <div className="h-full min-h-0 min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain">
       <div className="min-w-0 space-y-3 px-2 py-1.5">
         {limitedGroups.map((group) => (
-          <section key={group.label} aria-label={group.label}>
-            <div className="px-2 pb-1 text-[12px] font-medium text-muted-foreground/65">
-              {group.label}
-            </div>
+          <section key={group.id} aria-label={group.label}>
+            {group.kind === "project" ? (
+              <ProjectGroupHeader
+                label={group.label}
+                path={group.projectPath}
+                updatedAt={showTimestamps ? group.updatedAt : null}
+              />
+            ) : (
+              <div className="px-2 pb-1 text-[12px] font-medium text-muted-foreground/65">
+                {group.label}
+              </div>
+            )}
             <ul className="space-y-0.5">
               {group.sessions.map((s) => {
                 const active = s.key === activeKey;
@@ -169,6 +188,7 @@ export const ChatList = memo(function ChatList({
                 const timestamp = showTimestamps
                   ? relativeTime(s.updatedAt ?? s.createdAt)
                   : "";
+                const projectMode = group.kind === "project";
                 const activityState = running.has(s.chatId)
                   ? "running"
                   : completed.has(s.chatId)
@@ -192,15 +212,31 @@ export const ChatList = memo(function ChatList({
                         className={cn(
                           "min-w-0 flex-1 overflow-hidden text-left",
                           compact ? "py-1" : "py-1.5",
+                          projectMode && "pl-7",
                         )}
                       >
-                        <span className="block w-full truncate font-medium leading-5">{title}</span>
+                        {projectMode ? (
+                          <span className="flex w-full min-w-0 items-baseline gap-2">
+                            <span className="min-w-0 flex-1 truncate font-medium leading-5">
+                              {title}
+                            </span>
+                            {timestamp ? (
+                              <span className="shrink-0 text-[11.5px] font-medium text-muted-foreground/58">
+                                {timestamp}
+                              </span>
+                            ) : null}
+                          </span>
+                        ) : (
+                          <span className="block w-full truncate font-medium leading-5">
+                            {title}
+                          </span>
+                        )}
                         {showPreview ? (
                           <span className="block w-full truncate text-[11.5px] leading-4 text-muted-foreground/72">
                             {preview}
                           </span>
                         ) : null}
-                        {timestamp ? (
+                        {timestamp && !projectMode ? (
                           <span className="block w-full truncate text-[11px] leading-4 text-muted-foreground/58">
                             {timestamp}
                           </span>
@@ -288,6 +324,31 @@ export const ChatList = memo(function ChatList({
   );
 });
 
+function ProjectGroupHeader({
+  label,
+  path,
+  updatedAt,
+}: {
+  label: string;
+  path?: string;
+  updatedAt?: string | null;
+}) {
+  return (
+    <div
+      title={path}
+      className="flex min-w-0 items-center gap-2 px-2 pb-1 pt-1 text-[12px] font-medium text-muted-foreground/78"
+    >
+      <Folder className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {updatedAt ? (
+        <span className="shrink-0 text-[11px] text-muted-foreground/55">
+          {relativeTime(updatedAt)}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 function SessionActivityIndicator({
   state,
 }: {
@@ -333,6 +394,7 @@ function groupSessions(
     yesterday: string;
     earlier: string;
     archived: string;
+    projects: string;
     fallbackTitle: string;
   },
   options: {
@@ -342,7 +404,11 @@ function groupSessions(
     showArchived: boolean;
     sort: SidebarSortMode;
   },
-): Array<{ label: string; sessions: ChatSummary[] }> {
+): SessionGroup[] {
+  if (sessions.some((session) => session.workspaceScope?.project_path)) {
+    return groupSessionsByProject(sessions, labels, options);
+  }
+
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000;
@@ -378,8 +444,9 @@ function groupSessions(
     buckets.set(label, bucket);
   }
 
-  const groups = [labels.today, labels.yesterday, labels.earlier]
+  const groups: SessionGroup[] = [labels.today, labels.yesterday, labels.earlier]
     .map((label) => ({
+      id: `date:${label}`,
       label,
       sessions: sortSessions(
         buckets.get(label) ?? [],
@@ -390,6 +457,7 @@ function groupSessions(
     .filter((group) => group.sessions.length > 0);
   if (options.sort === "title_asc" && normalSessions.length) {
     groups.push({
+      id: "date:all",
       label: labels.all,
       sessions: sortSessions(
         normalSessions,
@@ -400,6 +468,7 @@ function groupSessions(
   }
   if (pinnedSessions.length) {
     groups.unshift({
+      id: "pinned",
       label: labels.pinned,
       sessions: sortSessions(
         pinnedSessions,
@@ -410,6 +479,7 @@ function groupSessions(
   }
   if (archivedSessions.length) {
     groups.push({
+      id: "archived",
       label: labels.archived,
       sessions: sortSessions(
         archivedSessions,
@@ -421,14 +491,87 @@ function groupSessions(
   return groups;
 }
 
+function groupSessionsByProject(
+  sessions: ChatSummary[],
+  labels: {
+    projects: string;
+    fallbackTitle: string;
+  },
+  options: {
+    pinnedKeys: string[];
+    archivedKeys: string[];
+    titleOverrides: Record<string, string>;
+    showArchived: boolean;
+    sort: SidebarSortMode;
+  },
+): SessionGroup[] {
+  const archived = new Set(options.archivedKeys);
+  const buckets = new Map<string, {
+    path?: string;
+    label: string;
+    sessions: ChatSummary[];
+    updatedAt: string | null;
+  }>();
+
+  for (const session of sessions) {
+    if (archived.has(session.key) && !options.showArchived) {
+      continue;
+    }
+    const scope = session.workspaceScope;
+    const path = scope?.project_path || "";
+    const label = scope?.project_name?.trim()
+      || (path ? projectName(path) : labels.projects);
+    const key = path || "__without_project__";
+    const bucket = buckets.get(key) ?? {
+      path: path || undefined,
+      label,
+      sessions: [],
+      updatedAt: null,
+    };
+    bucket.sessions.push(session);
+    const candidate = session.updatedAt ?? session.createdAt ?? null;
+    if (isNewerDate(candidate, bucket.updatedAt)) {
+      bucket.updatedAt = candidate;
+    }
+    buckets.set(key, bucket);
+  }
+
+  const pinned = new Set(options.pinnedKeys);
+  const groups = Array.from(buckets.entries()).map(([key, bucket]) => ({
+    id: `project:${key}`,
+    label: bucket.label,
+    kind: "project" as const,
+    projectPath: bucket.path,
+    updatedAt: bucket.updatedAt,
+    sessions: sortProjectSessions(
+      bucket.sessions,
+      options.sort,
+      options.titleOverrides,
+      pinned,
+      archived,
+    ),
+  }));
+
+  groups.sort((a, b) => {
+    const timeOrder = dateToTime(b.updatedAt) - dateToTime(a.updatedAt);
+    if (timeOrder !== 0) return timeOrder;
+    return a.label.localeCompare(b.label, "en", {
+      numeric: true,
+      sensitivity: "base",
+    });
+  });
+
+  return groups;
+}
+
 function limitGroups(
-  groups: Array<{ label: string; sessions: ChatSummary[] }>,
+  groups: SessionGroup[],
   limit: number,
   activeKey: string | null,
-): Array<{ label: string; sessions: ChatSummary[] }> {
+): SessionGroup[] {
   let remaining = Math.max(0, limit);
   let activeVisible = !activeKey;
-  const out: Array<{ label: string; sessions: ChatSummary[] }> = [];
+  const out: SessionGroup[] = [];
 
   for (const group of groups) {
     const visible = remaining > 0
@@ -439,7 +582,7 @@ function limitGroups(
       activeVisible = true;
     }
     if (visible.length > 0) {
-      out.push({ label: group.label, sessions: visible });
+      out.push({ ...group, sessions: visible });
     }
   }
 
@@ -448,16 +591,32 @@ function limitGroups(
   for (const group of groups) {
     const active = group.sessions.find((session) => session.key === activeKey);
     if (!active) continue;
-    const existing = out.find((item) => item.label === group.label);
+    const existing = out.find((item) => item.id === group.id);
     if (existing) {
       existing.sessions = [...existing.sessions, active];
     } else {
-      out.push({ label: group.label, sessions: [active] });
+      out.push({ ...group, sessions: [active] });
     }
     return out;
   }
 
   return out;
+}
+
+function sortProjectSessions(
+  sessions: ChatSummary[],
+  sort: SidebarSortMode,
+  titleOverrides: Record<string, string>,
+  pinned: Set<string>,
+  archived: Set<string>,
+): ChatSummary[] {
+  return sortSessions(sessions, sort, titleOverrides).sort((a, b) => {
+    const pinOrder = Number(pinned.has(b.key)) - Number(pinned.has(a.key));
+    if (pinOrder !== 0) return pinOrder;
+    const archiveOrder = Number(archived.has(a.key)) - Number(archived.has(b.key));
+    if (archiveOrder !== 0) return archiveOrder;
+    return 0;
+  });
 }
 
 function sortSessions(
@@ -481,6 +640,20 @@ function sortSessions(
     return bTime - aTime;
   });
   return copy;
+}
+
+function isNewerDate(a: string | null, b: string | null): boolean {
+  return dateToTime(a) > dateToTime(b);
+}
+
+function dateToTime(value: string | null | undefined): number {
+  const ts = Date.parse(value ?? "");
+  return Number.isFinite(ts) ? ts : 0;
+}
+
+function projectName(path: string): string {
+  const normalized = path.replace(/\\/g, "/").replace(/\/+$/, "");
+  return normalized.split("/").filter(Boolean).pop() || path;
 }
 
 function titleForSort(
