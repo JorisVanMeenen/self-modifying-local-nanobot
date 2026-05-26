@@ -1239,7 +1239,7 @@ export function ThreadComposer({
         <div
           className={cn(
             "flex items-center justify-between gap-2",
-            isHero ? "px-4 pb-4" : "px-3 pb-2",
+            isHero ? cn("px-4", showProjectPicker ? "pb-3" : "pb-4") : "px-3 pb-2",
           )}
         >
           <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -1371,29 +1371,27 @@ export function ThreadComposer({
             </Button>
           </div>
         </div>
+        {showProjectPicker ? (
+          <div className="flex items-center border-t border-border/35 px-4 py-3">
+            <button
+              type="button"
+              disabled={disabled || workspaceScopeDisabled}
+              aria-label={t("thread.composer.workspace.projectAria")}
+              onClick={onWorkspaceProjectClick}
+              className={cn(
+                "inline-flex h-8 max-w-[18rem] items-center gap-2 rounded-lg px-1.5",
+                "text-[12.5px] font-medium text-muted-foreground transition-colors",
+                "hover:bg-muted/35 hover:text-foreground disabled:pointer-events-none disabled:opacity-55",
+                currentProjectScope && "text-foreground/82",
+              )}
+            >
+              <Folder className={cn("h-3.5 w-3.5 shrink-0", currentProjectScope && "text-primary")} />
+              <span className="truncate">{projectLabel}</span>
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            </button>
+          </div>
+        ) : null}
       </div>
-      {showProjectPicker ? (
-        <div className="mx-auto mt-2 flex w-full max-w-[58rem] justify-start px-1">
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={disabled || workspaceScopeDisabled}
-            aria-label={t("thread.composer.workspace.projectAria")}
-            onClick={onWorkspaceProjectClick}
-            className={cn(
-              "h-9 max-w-[14rem] rounded-full border px-3 text-[12.5px] font-semibold",
-              "border-border/45 bg-card/80 text-muted-foreground shadow-[0_2px_8px_rgba(15,23,42,0.035)]",
-              "hover:bg-card hover:text-foreground",
-              currentProjectScope &&
-                "border-primary/25 bg-primary/8 text-foreground hover:bg-primary/10",
-            )}
-          >
-            <Folder className={cn("mr-1.5 h-3.5 w-3.5 shrink-0", currentProjectScope && "text-primary")} />
-            <span className="truncate">{projectLabel}</span>
-            <ChevronDown className="ml-1.5 h-3 w-3 shrink-0" />
-          </Button>
-        </div>
-      ) : null}
     </form>
   );
 }
