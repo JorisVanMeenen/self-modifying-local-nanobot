@@ -242,16 +242,6 @@ class TestDreamPrompt:
         expected = str(BUILTIN_SKILLS_DIR / "skill-creator" / "SKILL.md")
         assert expected in system_prompt
 
-    async def test_system_prompt_uses_threshold_from_template_var(self, loop, mock_runner, store):
-        store.append_history("some event")
-        mock_runner.run = AsyncMock(return_value=_make_run_result())
-        msg = InboundMessage(
-            channel="system", sender_id="dream", chat_id="dream", content=""
-        )
-        await loop._process_system_message(msg)
-        spec = mock_runner.run.call_args[0][0]
-        system_msg = spec.initial_messages[0]["content"]
-        assert "N>14" in system_msg
 
 
 class TestDreamPromptCaps:

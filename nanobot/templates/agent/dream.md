@@ -26,7 +26,7 @@ Cross-boundary rule: no technical configs in USER.md, no user facts in SOUL.md, 
 - Debugging steps unlikely to recur
 - Ephemeral facts past their useful life
 - Tool/service details documented upstream
-- Lines with ``← Nd`` where N>{{ stale_threshold_days }} — closer review, not automatic removal
+- Entries no longer referenced in recent conversations or superseded by newer facts — closer review, not automatic removal
 
 **Never delete:**
 - User preferences and personality traits (permanent regardless of age)

@@ -21,7 +21,6 @@ from nanobot.agent.autocompact import AutoCompact
 from nanobot.agent.context import ContextBuilder
 from nanobot.agent.hook import AgentHook, CompositeHook
 from nanobot.agent.memory import (
-    _STALE_THRESHOLD_DAYS,
     Consolidator,
     Dream,
     _estimate_tokens,
@@ -1187,7 +1186,6 @@ class AgentLoop:
                 soul_path=str(workspace / "SOUL.md"),
                 user_path=str(workspace / "USER.md"),
                 memory_path=str(workspace / "memory" / "MEMORY.md"),
-                stale_threshold_days=_STALE_THRESHOLD_DAYS,
             )
             session.metadata["_dream_system_prompt"] = cached_prompt
             session.metadata["_dream_system_prompt_mtime"] = current_mtime
