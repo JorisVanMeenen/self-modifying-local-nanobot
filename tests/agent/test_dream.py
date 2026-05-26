@@ -2,7 +2,7 @@
 
 import json
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -11,7 +11,6 @@ from nanobot.agent.runner import AgentRunResult
 from nanobot.agent.skills import BUILTIN_SKILLS_DIR
 from nanobot.bus.events import InboundMessage
 from nanobot.bus.queue import MessageBus
-from nanobot.utils.gitstore import LineAge
 
 
 def _provider(default_model: str, max_tokens: int = 123) -> MagicMock:
@@ -256,7 +255,7 @@ class TestDreamPrompt:
 
 
 class TestDreamPromptCaps:
-    async def test_caps_huge_memory_file(self, loop, mock_runner, store):
+    async def test_references_memory_file_size(self, loop, mock_runner, store):
         store.write_memory("M" * (loop.dream._MEMORY_FILE_MAX_CHARS * 5))
         store.append_history("some event")
         mock_runner.run = AsyncMock(return_value=_make_run_result())
@@ -266,10 +265,8 @@ class TestDreamPromptCaps:
         await loop._process_system_message(msg)
         spec = mock_runner.run.call_args[0][0]
         user_msg = spec.initial_messages[1]["content"]
-        memory_section = user_msg.split("## Current MEMORY.md")[1].split(
-            "## Current SOUL.md"
-        )[0]
-        assert len(memory_section) < loop.dream._MEMORY_FILE_MAX_CHARS + 500
+        assert "## Memory Files (read before editing)" in user_msg
+        assert "80000 chars" in user_msg
 
     async def test_caps_huge_history_entry(self, loop, mock_runner, store):
         store.history_file.write_text(
@@ -327,37 +324,27 @@ class TestDreamSkipFiltering:
         assert "greeting" not in user_msg
 
 
-class TestDreamAgeAnnotations:
-    async def test_prompt_includes_line_age_annotations(self, loop, mock_runner, store):
+class TestDreamFileReferences:
+    async def test_prompt_shows_file_references(self, loop, mock_runner, store):
+        store.write_soul("# Soul\n- Helpful")
+        store.write_user("# User\n- Developer")
+        store.write_memory("# Memory\n- Project X active")
         store.append_history("some event")
         mock_runner.run = AsyncMock(return_value=_make_run_result())
-        store.git.init()
-        store.git.auto_commit("initial memory state")
         msg = InboundMessage(
             channel="system", sender_id="dream", chat_id="dream", content=""
         )
         await loop._process_system_message(msg)
         spec = mock_runner.run.call_args[0][0]
         user_msg = spec.initial_messages[1]["content"]
-        assert "## Current MEMORY.md" in user_msg
-
-    async def test_annotates_only_memory_not_soul_or_user(self, loop, mock_runner, store):
-        store.append_history("some event")
-        mock_runner.run = AsyncMock(return_value=_make_run_result())
-        store.git.init()
-        store.git.auto_commit("initial state")
-        msg = InboundMessage(
-            channel="system", sender_id="dream", chat_id="dream", content=""
-        )
-        await loop._process_system_message(msg)
-        spec = mock_runner.run.call_args[0][0]
-        user_msg = spec.initial_messages[1]["content"]
-        soul_section = user_msg.split("## Current SOUL.md")[1].split(
-            "## Current USER.md"
-        )[0]
-        user_section = user_msg.split("## Current USER.md")[1]
-        assert "←" not in soul_section
-        assert "←" not in user_section
+        assert "## Memory Files (read before editing)" in user_msg
+        assert "MEMORY.md" in user_msg
+        assert "SOUL.md" in user_msg
+        assert "USER.md" in user_msg
+        # Content should not be embedded
+        assert "Project X active" not in user_msg
+        assert "Helpful" not in user_msg
+        assert "Developer" not in user_msg
 
     async def test_prompt_works_without_git(self, loop, mock_runner, store):
         store.append_history("some event")
@@ -369,74 +356,7 @@ class TestDreamAgeAnnotations:
         mock_runner.run.assert_called_once()
         spec = mock_runner.run.call_args[0][0]
         user_msg = spec.initial_messages[1]["content"]
-        assert "## Current MEMORY.md" in user_msg
-
-    async def test_prompt_carries_age_suffix_for_stale_lines(self, loop, mock_runner, store):
-        store.write_memory(
-            "# Memory\n- Project X active\n- fresh item\n- edge case line"
-        )
-        store.append_history("some event")
-        mock_runner.run = AsyncMock(return_value=_make_run_result())
-        fake_ages = [
-            LineAge(age_days=30),
-            LineAge(age_days=20),
-            LineAge(age_days=14),
-            LineAge(age_days=5),
-        ]
-        with patch.object(loop.dream.store.git, "line_ages", return_value=fake_ages):
-            msg = InboundMessage(
-                channel="system", sender_id="dream", chat_id="dream", content=""
-            )
-            await loop._process_system_message(msg)
-        spec = mock_runner.run.call_args[0][0]
-        user_msg = spec.initial_messages[1]["content"]
-        memory_section = user_msg.split("## Current MEMORY.md")[1].split(
-            "## Current SOUL.md"
-        )[0]
-        assert "← 30d" in memory_section
-        assert "← 20d" in memory_section
-        assert "← 14d" not in memory_section
-        assert "← 5d" not in memory_section
-
-    async def test_skips_annotation_when_disabled(self, loop, mock_runner, store):
-        store.write_soul("# Soul\n- Helpful")
-        store.write_user("# User\n- Developer")
-        store.write_memory("# Memory\n- Project X active")
-        store.append_history("some event")
-        mock_runner.run = AsyncMock(return_value=_make_run_result())
-        loop.dream.annotate_line_ages = False
-        with patch.object(loop.dream.store.git, "line_ages") as mock_line_ages:
-            msg = InboundMessage(
-                channel="system", sender_id="dream", chat_id="dream", content=""
-            )
-            await loop._process_system_message(msg)
-            mock_line_ages.assert_not_called()
-        spec = mock_runner.run.call_args[0][0]
-        user_msg = spec.initial_messages[1]["content"]
-        assert "←" not in user_msg
-        # Verify each file section carries its own content, not a fallback
-        soul_section = user_msg.split("## Current SOUL.md")[1].split("## Current USER.md")[0]
-        user_section = user_msg.split("## Current USER.md")[1]
-        assert "Helpful" in soul_section
-        assert "Developer" in user_section
-        assert "Project X active" in user_msg.split("## Current MEMORY.md")[1].split("## Current SOUL.md")[0]
-
-    async def test_skips_annotation_on_line_ages_length_mismatch(self, loop, mock_runner, store):
-        store.append_history("some event")
-        mock_runner.run = AsyncMock(return_value=_make_run_result())
-        with patch.object(
-            loop.dream.store.git, "line_ages", return_value=[LineAge(age_days=999)]
-        ):
-            msg = InboundMessage(
-                channel="system", sender_id="dream", chat_id="dream", content=""
-            )
-            await loop._process_system_message(msg)
-        spec = mock_runner.run.call_args[0][0]
-        user_msg = spec.initial_messages[1]["content"]
-        memory_section = user_msg.split("## Current MEMORY.md")[1].split(
-            "## Current SOUL.md"
-        )[0]
-        assert "←" not in memory_section
+        assert "## Memory Files (read before editing)" in user_msg
 
 
 class TestDreamSessionPersistence:

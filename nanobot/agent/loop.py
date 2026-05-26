@@ -1209,33 +1209,25 @@ class AgentLoop:
                 for e in batch
             )
 
-            # Current file contents + per-line age annotations
+            # File references — agent reads contents on demand instead of embedding
+            # the full text in the prompt, which avoids length errors as files grow.
             current_date = datetime.now().strftime("%Y-%m-%d")
-            annotate = self.dream.annotate_line_ages
             raw_memory = self.dream.store.read_memory() or "(empty)"
             raw_soul = self.dream.store.read_soul() or "(empty)"
             raw_user = self.dream.store.read_user() or "(empty)"
-            annotated_memory = (
-                self.dream._annotate_with_ages(raw_memory, "memory/MEMORY.md")
-                if annotate else raw_memory
-            )
-            annotated_soul = (
-                self.dream._annotate_with_ages(raw_soul, "SOUL.md")
-                if annotate else raw_soul
-            )
-            annotated_user = (
-                self.dream._annotate_with_ages(raw_user, "USER.md")
-                if annotate else raw_user
-            )
-            current_memory = truncate_text_fn(annotated_memory, self.dream._MEMORY_FILE_MAX_CHARS)
-            current_soul = truncate_text_fn(annotated_soul, self.dream._SOUL_FILE_MAX_CHARS)
-            current_user = truncate_text_fn(annotated_user, self.dream._USER_FILE_MAX_CHARS)
+            memory_path = workspace / "memory" / "MEMORY.md"
+            soul_path = workspace / "SOUL.md"
+            user_path = workspace / "USER.md"
 
             file_context = (
                 f"## Current Date\n{current_date}\n\n"
-                f"## Current MEMORY.md ({len(current_memory)} chars)\n{current_memory}\n\n"
-                f"## Current SOUL.md ({len(current_soul)} chars)\n{current_soul}\n\n"
-                f"## Current USER.md ({len(current_user)} chars)\n{current_user}"
+                f"## Memory Files (read before editing)\n"
+                f"- MEMORY.md: {memory_path} "
+                f"({len(raw_memory)} chars, {len(raw_memory.splitlines())} lines)\n"
+                f"- SOUL.md: {soul_path} "
+                f"({len(raw_soul)} chars, {len(raw_soul.splitlines())} lines)\n"
+                f"- USER.md: {user_path} "
+                f"({len(raw_user)} chars, {len(raw_user.splitlines())} lines)"
             )
 
             existing_skills = self.dream._list_existing_skills()
