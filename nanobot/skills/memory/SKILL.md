@@ -31,8 +31,6 @@ Examples (replace `keyword`):
 
 ## Important
 
-- **Do NOT edit SOUL.md, USER.md, or MEMORY.md.** They are automatically managed by Dream.
-- If you notice outdated information, it will be corrected when Dream runs next.
-- Users can view Dream's activity with the `/dream-log` command.
-- Dream runs as a `system` session inside the AgentLoop, triggered by the `/dream` command or cron. Each turn processes one batch; if backlog remains, Dream automatically chains additional turns until complete. All changes are committed in a single git commit.
-- Dream can use a different model than the main agent via `agents.defaults.dream.modelOverride`. Only the model string is overridden — Dream always shares the main loop's provider (including FallbackProvider behaviour). Preset names are the recommended value (only the preset's *model* field is used). Raw model identifiers still work for backward compatibility but are deprecated and will be removed in a future release.
+- **Do NOT edit SOUL.md, USER.md, or MEMORY.md.** They are managed automatically.
+- If you notice outdated information, mention it to the user — it will be corrected on the next memory consolidation pass.
+- Users can view recent memory activity with the `/dream-log` command.
