@@ -20,6 +20,7 @@ import httpx
 
 from nanobot.apps.protocol import app_manifest, compact_dict
 from nanobot.config.paths import get_runtime_subdir
+from nanobot.security.workspace_policy import is_path_within
 
 CLI_ANYTHING_REGISTRY_URL = "https://hkuds.github.io/CLI-Anything/registry.json"
 CLI_ANYTHING_PUBLIC_REGISTRY_URL = "https://hkuds.github.io/CLI-Anything/public_registry.json"
@@ -1018,7 +1019,7 @@ Use the `run_cli_app` tool with `name="{name}"` for command execution. Do not in
         cwd = Path(working_dir).expanduser() if working_dir else self.workspace
         cwd = cwd.resolve(strict=False)
         workspace = self.workspace.resolve(strict=False)
-        if restrict_to_workspace and cwd != workspace and not cwd.is_relative_to(workspace):
+        if restrict_to_workspace and not is_path_within(cwd, workspace):
             raise CliAppError("working_dir is outside the configured workspace")
         return cwd
 

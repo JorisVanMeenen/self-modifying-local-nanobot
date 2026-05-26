@@ -21,6 +21,7 @@ from nanobot.providers.image_generation import (
     ImageGenerationProvider,
     get_image_gen_provider,
 )
+from nanobot.security.workspace_policy import WorkspaceBoundaryError, resolve_allowed_path
 from nanobot.utils.artifacts import (
     ArtifactError,
     generated_image_tool_result,
@@ -131,18 +132,20 @@ class ImageGenerationTool(Tool):
         return cls(**kwargs)
 
     def _resolve_reference_image(self, value: str) -> str:
-        raw_path = Path(value).expanduser()
-        path = raw_path if raw_path.is_absolute() else self.workspace / raw_path
         try:
-            resolved = path.resolve(strict=True)
+            resolved = resolve_allowed_path(
+                value,
+                workspace=self.workspace,
+                allowed_root=self.workspace,
+                extra_allowed_roots=[get_media_dir()],
+                strict=True,
+            )
         except OSError as exc:
             raise ImageGenerationError(f"reference image not found: {value}") from exc
-
-        allowed_roots = [self.workspace.resolve(), get_media_dir().resolve()]
-        if not any(_is_relative_to(resolved, root) for root in allowed_roots):
+        except WorkspaceBoundaryError as exc:
             raise ImageGenerationError(
                 "reference_images must be inside the workspace or nanobot media directory"
-            )
+            ) from exc
         if not resolved.is_file():
             raise ImageGenerationError(f"reference image is not a file: {value}")
         raw = resolved.read_bytes()
@@ -201,11 +204,3 @@ class ImageGenerationTool(Tool):
             return generated_image_tool_result(artifacts)
         except (ArtifactError, ImageGenerationError, OSError) as exc:
             return f"Error: {exc}"
-
-
-def _is_relative_to(path: Path, root: Path) -> bool:
-    try:
-        path.relative_to(root)
-    except ValueError:
-        return False
-    return True

@@ -20,6 +20,7 @@ from nanobot.bus.events import InboundMessage
 from nanobot.bus.queue import MessageBus
 from nanobot.config.schema import AgentDefaults, ToolsConfig
 from nanobot.providers.base import LLMProvider
+from nanobot.security.workspace_sandbox import workspace_sandbox_status
 from nanobot.utils.prompt_templates import render_template
 
 
@@ -128,6 +129,10 @@ class SubagentManager:
             config=cfg,
             workspace=str(root.resolve()),
             file_state_store=FileStates(),
+            workspace_sandbox=workspace_sandbox_status(
+                restrict_to_workspace=cfg.restrict_to_workspace,
+                workspace=root,
+            ),
         )
         ToolLoader().load(ctx, registry, scope="subagent")
         return registry

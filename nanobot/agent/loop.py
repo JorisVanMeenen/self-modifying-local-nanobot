@@ -33,6 +33,7 @@ from nanobot.command import CommandContext, CommandRouter, register_builtin_comm
 from nanobot.config.schema import AgentDefaults, ModelPresetConfig
 from nanobot.providers.base import LLMProvider
 from nanobot.providers.factory import ProviderSnapshot
+from nanobot.security.workspace_sandbox import workspace_sandbox_status
 from nanobot.session.goal_state import (
     goal_state_runtime_lines,
     runner_wall_llm_timeout_s,
@@ -241,6 +242,10 @@ class AgentLoop:
             self._image_generation_provider_configs["openrouter"] = image_generation_provider_config
         self.cron_service = cron_service
         self.restrict_to_workspace = restrict_to_workspace
+        self.workspace_sandbox = workspace_sandbox_status(
+            restrict_to_workspace=restrict_to_workspace,
+            workspace=workspace,
+        )
         self._start_time = time.time()
         self._last_usage: dict[str, int] = {}
         self._pending_turn_latency_ms: dict[str, int] = {}
@@ -470,6 +475,7 @@ class AgentLoop:
             provider_snapshot_loader=self._provider_snapshot_loader,
             image_generation_provider_configs=self._image_generation_provider_configs,
             timezone=self.context.timezone or "UTC",
+            workspace_sandbox=self.workspace_sandbox,
         )
         loader = ToolLoader()
         registered = loader.load(ctx, self.tools)

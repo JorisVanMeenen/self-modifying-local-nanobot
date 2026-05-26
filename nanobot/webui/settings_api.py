@@ -17,6 +17,7 @@ from nanobot.providers.image_generation import (
     image_gen_provider_names,
 )
 from nanobot.providers.registry import PROVIDERS, find_by_name
+from nanobot.security.workspace_sandbox import workspace_sandbox_status
 
 QueryParams = dict[str, list[str]]
 
@@ -241,6 +242,10 @@ def settings_payload(*, requires_restart: bool = False) -> dict[str, Any]:
         )
 
     exec_config = config.tools.exec
+    sandbox_status = workspace_sandbox_status(
+        restrict_to_workspace=config.tools.restrict_to_workspace,
+        workspace=config.workspace_path,
+    )
     return {
         "agent": {
             "model": effective_preset.model,
@@ -312,6 +317,7 @@ def settings_payload(*, requires_restart: bool = False) -> dict[str, Any]:
         },
         "advanced": {
             "restrict_to_workspace": config.tools.restrict_to_workspace,
+            "workspace_sandbox": sandbox_status.as_dict(),
             "ssrf_whitelist_count": len(config.tools.ssrf_whitelist),
             "mcp_server_count": len(config.tools.mcp_servers),
             "exec_enabled": exec_config.enable,

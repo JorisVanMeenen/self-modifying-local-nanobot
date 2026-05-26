@@ -3589,12 +3589,26 @@ function RuntimeSettings({
 function AdvancedSettings({ settings }: { settings: SettingsPayload }) {
   const { t } = useTranslation();
   const tx = (key: string, fallback: string) => t(key, { defaultValue: fallback });
+  const sandbox = settings.advanced.workspace_sandbox;
+  const sandboxValue = !sandbox
+    ? null
+    : sandbox.level === "system"
+      ? `${tx("settings.values.systemEnforced", "System enforced")} · ${sandbox.provider_label}`
+      : sandbox.level === "application"
+        ? tx("settings.values.applicationGuard", "Application guard")
+        : tx("settings.values.disabled", "Disabled");
   return (
     <div className="space-y-7">
       <section>
         <SettingsSectionTitle>{tx("settings.sections.safety", "Safety")}</SettingsSectionTitle>
         <SettingsGroup>
           <ReadOnlyRow title={tx("settings.rows.restrictWorkspace", "Restrict to workspace")} value={settings.advanced.restrict_to_workspace ? tx("settings.values.enabled", "Enabled") : tx("settings.values.disabled", "Disabled")} />
+          {settings.advanced.workspace_sandbox ? (
+            <ReadOnlyRow
+              title={tx("settings.rows.workspaceSandbox", "Workspace sandbox")}
+              value={sandboxValue ?? tx("settings.values.notAvailable", "Not available")}
+            />
+          ) : null}
           <ReadOnlyRow title={tx("settings.rows.execTool", "Exec tool")} value={settings.advanced.exec_enabled ? tx("settings.values.enabled", "Enabled") : tx("settings.values.disabled", "Disabled")} />
           <ReadOnlyRow title={tx("settings.rows.execSandbox", "Exec sandbox")} value={settings.advanced.exec_sandbox ?? tx("settings.values.notAvailable", "Not available")} />
           <ReadOnlyRow title={tx("settings.rows.ssrfWhitelist", "SSRF whitelist")} value={String(settings.advanced.ssrf_whitelist_count)} />

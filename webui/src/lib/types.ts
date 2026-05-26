@@ -270,6 +270,15 @@ export interface SettingsPayload {
   };
   advanced: {
     restrict_to_workspace: boolean;
+    workspace_sandbox?: {
+      restrict_to_workspace: boolean;
+      workspace_root: string;
+      level: "off" | "application" | "system" | string;
+      enforced: boolean;
+      provider: string;
+      provider_label: string;
+      summary: string;
+    };
     ssrf_whitelist_count: number;
     mcp_server_count: number;
     exec_enabled: boolean;

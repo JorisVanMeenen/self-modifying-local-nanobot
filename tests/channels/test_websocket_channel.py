@@ -1365,6 +1365,24 @@ def test_settings_payload_exposes_api_type_only_for_openai(monkeypatch, tmp_path
     assert "api_type" not in providers["custom"]
 
 
+def test_settings_payload_reports_workspace_sandbox(monkeypatch, tmp_path) -> None:
+    config_path = tmp_path / "config.json"
+    config = Config()
+    config.tools.restrict_to_workspace = True
+    save_config(config, config_path)
+    monkeypatch.setattr("nanobot.config.loader._current_config_path", config_path)
+    monkeypatch.setenv("NANOBOT_SANDBOX_ENFORCED", "macos_app_sandbox")
+
+    body = settings_payload()
+    sandbox = body["advanced"]["workspace_sandbox"]
+
+    assert sandbox["restrict_to_workspace"] is True
+    assert sandbox["level"] == "system"
+    assert sandbox["enforced"] is True
+    assert sandbox["provider"] == "macos_app_sandbox"
+    assert sandbox["provider_label"] == "macOS App Sandbox"
+
+
 def test_update_provider_settings_ignores_api_type_for_non_openai(monkeypatch, tmp_path) -> None:
     config_path = tmp_path / "config.json"
     save_config(Config(), config_path)
