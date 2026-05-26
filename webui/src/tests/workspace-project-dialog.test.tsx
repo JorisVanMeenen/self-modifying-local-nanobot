@@ -20,7 +20,6 @@ function renderDialog(overrides: Partial<Parameters<typeof WorkspaceProjectDialo
       scope={DEFAULT_SCOPE}
       defaultScope={DEFAULT_SCOPE}
       recentProjects={[{ project_path: "/Users/test/project-alpha", project_name: "project-alpha" }]}
-      canUseFullAccess
       disabled={false}
       onOpenChange={onOpenChange}
       onApply={onApply}
@@ -40,15 +39,15 @@ describe("WorkspaceProjectDialog", () => {
     expect(screen.getByText("project-alpha")).toBeInTheDocument();
   });
 
-  it("applies access mode changes without pretending to validate paths locally", () => {
+  it("applies project changes without changing access mode", () => {
     const { onApply } = renderDialog();
 
-    fireEvent.click(screen.getByText("Full Access"));
+    fireEvent.click(screen.getByText("project-alpha"));
 
     expect(onApply).toHaveBeenCalledWith(expect.objectContaining({
-      project_path: DEFAULT_SCOPE.project_path,
-      access_mode: "full",
-      restrict_to_workspace: false,
+      project_path: "/Users/test/project-alpha",
+      access_mode: DEFAULT_SCOPE.access_mode,
+      restrict_to_workspace: DEFAULT_SCOPE.restrict_to_workspace,
     }));
   });
 

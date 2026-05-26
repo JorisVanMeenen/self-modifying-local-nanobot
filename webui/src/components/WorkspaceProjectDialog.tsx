@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle, Check, ChevronDown, Folder, Keyboard, Shield } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Check, ChevronDown, Folder, Keyboard } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import type { WorkspaceAccessMode, WorkspaceScopePayload, WorkspacesPayload } from "@/lib/types";
+import type { WorkspaceScopePayload, WorkspacesPayload } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface WorkspaceProjectDialogProps {
@@ -20,7 +20,6 @@ interface WorkspaceProjectDialogProps {
   scope: WorkspaceScopePayload | null;
   defaultScope: WorkspaceScopePayload | null;
   recentProjects: WorkspacesPayload["recent_projects"];
-  canUseFullAccess: boolean;
   disabled?: boolean;
   serverError?: string | null;
   onOpenChange: (open: boolean) => void;
@@ -32,7 +31,6 @@ export function WorkspaceProjectDialog({
   scope,
   defaultScope,
   recentProjects,
-  canUseFullAccess,
   disabled = false,
   serverError = null,
   onOpenChange,
@@ -75,7 +73,6 @@ export function WorkspaceProjectDialog({
   const applyProject = (
     projectPath: string,
     projectName?: string,
-    mode: WorkspaceAccessMode = accessMode,
   ) => {
     if (!projectPath.trim() || !isAbsolutePath(projectPath)) {
       setError(t("workspace.dialog.absolutePathRequired"));
@@ -84,26 +81,26 @@ export function WorkspaceProjectDialog({
     onApply({
       project_path: projectPath.trim(),
       project_name: projectName || projectNameFromPath(projectPath),
-      access_mode: mode,
-      restrict_to_workspace: mode === "restricted",
+      access_mode: accessMode,
+      restrict_to_workspace: accessMode === "restricted",
     });
     onOpenChange(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[480px] rounded-[28px] border-border/55 bg-card/96 p-0 shadow-[0_28px_90px_rgba(15,23,42,0.20)] backdrop-blur-xl dark:border-white/10">
-        <DialogHeader className="px-5 pb-3 pt-5 text-left">
+      <DialogContent className="max-w-[430px] rounded-[26px] border-border/55 bg-background p-0 shadow-[0_24px_80px_rgba(15,23,42,0.20)] dark:border-white/10">
+        <DialogHeader className="px-5 pb-2 pt-5 text-left">
           <DialogTitle className="text-[17px] font-semibold tracking-[-0.01em]">
             {t("workspace.dialog.title")}
           </DialogTitle>
-          <DialogDescription className="max-w-[25rem] text-[12.5px] leading-5">
+          <DialogDescription className="max-w-[22rem] text-[12.5px] leading-5">
             {t("workspace.dialog.description")}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 px-5 pb-5">
-          <section className="overflow-hidden rounded-[20px] border border-border/50 bg-background/72">
+        <div className="space-y-2.5 px-5 pb-5">
+          <section className="overflow-hidden rounded-[18px] border border-border/50 bg-card">
             {projects.map((project) => {
               const selected = hasExplicitScope && current?.project_path === project.project_path;
               return (
@@ -117,7 +114,7 @@ export function WorkspaceProjectDialog({
                     "transition-colors hover:bg-muted/40 disabled:pointer-events-none disabled:opacity-60",
                   )}
                 >
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[13px] bg-muted/60 text-foreground/82">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[13px] bg-muted text-foreground/82">
                     <Folder className="h-4 w-4" />
                   </span>
                   <span className="min-w-0 flex-1">
@@ -136,41 +133,14 @@ export function WorkspaceProjectDialog({
             })}
           </section>
 
-          <section className="rounded-[20px] border border-border/50 bg-background/72 p-1.5">
-            <div className="mb-1 flex items-center justify-between px-2 py-1">
-              <span className="text-[12px] font-medium text-muted-foreground">
-                {t("workspace.dialog.access")}
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              <AccessButton
-                active={accessMode === "restricted"}
-                disabled={disabled}
-                title={t("thread.composer.workspace.restricted")}
-                description={t("thread.composer.workspace.restrictedDescription")}
-                icon={<Shield className="h-4 w-4" />}
-                onClick={() => current && onApply({ ...current, access_mode: "restricted", restrict_to_workspace: true })}
-              />
-              <AccessButton
-                active={accessMode === "full"}
-                disabled={!canUseFullAccess || disabled}
-                warning
-                title={t("thread.composer.workspace.full")}
-                description={t("thread.composer.workspace.fullDescription")}
-                icon={<AlertTriangle className="h-4 w-4" />}
-                onClick={() => current && onApply({ ...current, access_mode: "full", restrict_to_workspace: false })}
-              />
-            </div>
-          </section>
-
-          <section className="overflow-hidden rounded-[20px] border border-border/50 bg-background/72">
+          <section className="overflow-hidden rounded-[18px] border border-border/50 bg-card">
             <button
               type="button"
               disabled={disabled}
               onClick={() => setManualOpen((value) => !value)}
               className="flex w-full items-center gap-3 px-3.5 py-3 text-left transition-colors hover:bg-muted/40 disabled:pointer-events-none disabled:opacity-60"
             >
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[13px] bg-muted/60 text-foreground/82">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[13px] bg-muted text-foreground/82">
                 <Keyboard className="h-4 w-4" />
               </span>
               <span className="min-w-0 flex-1">
@@ -199,7 +169,7 @@ export function WorkspaceProjectDialog({
                   }}
                   disabled={disabled}
                   placeholder={t("workspace.dialog.manualPlaceholder")}
-                  className="h-10 rounded-full border-border/55 bg-card/80 px-4"
+                  className="h-10 rounded-full border-border/55 bg-background px-4"
                 />
                 <Button
                   type="button"
@@ -234,57 +204,6 @@ export function WorkspaceProjectDialog({
     </Dialog>
   );
 }
-
-function AccessButton({
-  active,
-  disabled,
-  warning,
-  title,
-  description,
-  icon,
-  onClick,
-}: {
-  active: boolean;
-  disabled?: boolean;
-  warning?: boolean;
-  title: string;
-  description: string;
-  icon: ReactNode;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={cn(
-        "flex min-h-12 items-center gap-2 rounded-[15px] px-3 py-2 text-left",
-        "transition-colors hover:bg-muted/45 disabled:pointer-events-none disabled:opacity-55",
-        active
-          ? warning
-            ? "bg-orange-50 text-orange-700 shadow-[inset_0_0_0_1px_rgba(251,146,60,0.38)] dark:bg-orange-950/20 dark:text-orange-300"
-            : "bg-muted text-foreground shadow-[inset_0_0_0_1px_rgba(15,23,42,0.04)]"
-          : "text-foreground/86",
-      )}
-    >
-      <span
-        className={cn(
-          "grid h-7 w-7 shrink-0 place-items-center rounded-[10px]",
-          warning ? "bg-orange-500/10" : "bg-muted/65",
-        )}
-      >
-        {icon}
-      </span>
-      <span className="min-w-0">
-        <span className="block truncate text-[13px] font-semibold">{title}</span>
-        <span className="mt-0.5 hidden text-[11.5px] leading-4 text-muted-foreground sm:block">
-          {description}
-        </span>
-      </span>
-    </button>
-  );
-}
-
 function isAbsolutePath(path: string): boolean {
   const trimmed = path.trim();
   return trimmed.startsWith("/") || /^[A-Za-z]:[\\/]/.test(trimmed);

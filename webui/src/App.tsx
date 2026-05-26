@@ -943,7 +943,6 @@ function Shell({
           scope={activeChatId ? activeWorkspaceScope : draftWorkspaceScope}
           defaultScope={workspaces?.default_scope ?? null}
           recentProjects={workspaces?.recent_projects ?? []}
-          canUseFullAccess={workspaces?.controls.can_use_full_access !== false}
           disabled={activeChatRunning}
           serverError={workspaceError}
           onApply={applyWorkspaceScope}
