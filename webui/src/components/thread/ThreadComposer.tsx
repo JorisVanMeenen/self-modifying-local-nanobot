@@ -1382,11 +1382,6 @@ export function ThreadComposer({
             </div>
           </div>
           <div className={cn("flex shrink-0 items-center", isHero ? "gap-1.5" : "gap-2")}>
-            {!isHero ? (
-              <span className="hidden select-none text-[10.5px] text-muted-foreground/60 sm:inline">
-                {t("thread.composer.sendHint")}
-              </span>
-            ) : null}
             {modelLabel ? (
               <ComposerModelBadge
                 label={modelLabel}

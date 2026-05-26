@@ -182,6 +182,7 @@ describe("ThreadComposer", () => {
     expect(input.parentElement?.parentElement?.className).toContain("shadow-[0_12px_30px_rgba(15,23,42,0.07)]");
     expect(screen.getByRole("button", { name: "Attach image" }).className).toContain("bg-card");
     expect(screen.getByRole("button", { name: "Send message" }).className).toContain("bg-foreground");
+    expect(screen.queryByText(/Enter to send/)).not.toBeInTheDocument();
   });
 
   it("renders and changes workspace access mode", async () => {
