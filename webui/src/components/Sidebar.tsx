@@ -1,12 +1,9 @@
 import { useState, type ReactNode } from "react";
 import {
   Archive,
-  AlertTriangle,
   ListFilter,
-  Folder,
   Menu,
   Search,
-  Shield,
   Settings,
   SquarePen,
   Blocks,
@@ -73,10 +70,6 @@ export function Sidebar(props: SidebarProps) {
     useState<HTMLElement | null>(null);
   const collapsed = Boolean(props.collapsed);
   const toggleLabel = t("thread.header.toggleSidebar");
-  const showProjectButton = Boolean(
-    props.workspaceScope
-      && !sameWorkspacePath(props.workspaceScope.project_path, props.defaultWorkspacePath),
-  );
 
   return (
     <nav
@@ -123,14 +116,6 @@ export function Sidebar(props: SidebarProps) {
           </Button>
         )}
       </div>
-
-      {showProjectButton && props.workspaceScope ? (
-        <SidebarProjectButton
-          scope={props.workspaceScope}
-          defaultWorkspacePath={props.defaultWorkspacePath}
-          collapsed={collapsed}
-        />
-      ) : null}
 
       <div
         className={cn(
@@ -279,103 +264,6 @@ function SidebarActionButton({
       </span>
     </Button>
   );
-}
-
-function SidebarProjectButton({
-  scope,
-  defaultWorkspacePath,
-  collapsed,
-}: {
-  scope: WorkspaceScopePayload;
-  defaultWorkspacePath?: string | null;
-  collapsed: boolean;
-}) {
-  const { t } = useTranslation();
-  const isFull = scope.access_mode === "full";
-  const isDefaultWorkspace = sameWorkspacePath(scope.project_path, defaultWorkspacePath);
-  const label = isDefaultWorkspace
-    ? t("chat.groups.all")
-    : scope.project_name || projectName(scope.project_path);
-  const subtitle = shortPath(scope.project_path);
-
-  return (
-    <div className={cn("px-2 pb-2", collapsed && "flex w-14 justify-center px-0")}>
-      <div
-        title={collapsed ? label : undefined}
-        className={cn(
-          "flex min-w-0 items-center overflow-hidden border border-transparent text-left text-sidebar-foreground/85",
-          "transition-[width,height,padding,border-radius,color,background-color] duration-300 ease-out",
-          collapsed
-            ? "h-9 w-9 rounded-xl px-0"
-            : "h-auto w-full justify-start rounded-[16px] px-2.5 py-2",
-        )}
-      >
-        <span
-          className={cn(
-            "grid shrink-0 place-items-center rounded-xl bg-sidebar-accent/70",
-            collapsed ? "h-8 w-8" : "mr-2 h-9 w-9",
-          )}
-          aria-hidden
-        >
-          <Folder className="h-4 w-4" />
-        </span>
-        {!collapsed ? (
-          <>
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate text-[12.5px] font-semibold leading-4">
-                {label}
-              </span>
-              <span className="truncate text-[11px] leading-4 text-muted-foreground">
-                {subtitle}
-              </span>
-            </span>
-            <span
-              className={cn(
-                "ml-2 grid h-7 w-7 shrink-0 place-items-center rounded-full",
-                isFull
-                  ? "bg-orange-500/10 text-orange-600 dark:text-orange-300"
-                  : "bg-sidebar-accent text-muted-foreground",
-              )}
-              title={t(
-                isFull
-                  ? "thread.composer.workspace.full"
-                  : "thread.composer.workspace.restricted",
-              )}
-              aria-hidden
-            >
-              {isFull ? (
-                <AlertTriangle className="h-3.5 w-3.5" />
-              ) : (
-                <Shield className="h-3.5 w-3.5" />
-              )}
-            </span>
-          </>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function projectName(path: string): string {
-  const normalized = path.replace(/\\/g, "/").replace(/\/+$/, "");
-  return normalized.split("/").filter(Boolean).pop() || path;
-}
-
-function shortPath(path: string): string {
-  const normalized = path.replace(/\\/g, "/");
-  const parts = normalized.split("/").filter(Boolean);
-  if (parts.length <= 3) return path;
-  return `…/${parts.slice(-3).join("/")}`;
-}
-
-function normalizeWorkspacePath(path: string | null | undefined): string {
-  const normalized = (path ?? "").replace(/\\/g, "/").replace(/\/+$/, "");
-  return normalized || "/";
-}
-
-function sameWorkspacePath(a: string | null | undefined, b: string | null | undefined): boolean {
-  if (!a || !b) return false;
-  return normalizeWorkspacePath(a) === normalizeWorkspacePath(b);
 }
 
 function SidebarViewMenu({
