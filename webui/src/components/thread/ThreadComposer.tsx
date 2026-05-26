@@ -1420,7 +1420,7 @@ export function ThreadComposer({
           </div>
         </div>
         {showProjectPicker ? (
-          <div className="flex items-center border-t border-border/35 bg-muted/60 px-4 py-1.5 transition-colors group-focus-within/composer:border-blue-300/45 dark:bg-white/[0.055] dark:group-focus-within/composer:border-blue-400/35">
+          <div className="flex items-center border-t border-border/25 bg-muted/60 px-4 py-1.5 dark:bg-white/[0.055]">
             <DropdownMenu open={projectMenuOpen} onOpenChange={setProjectMenuOpen}>
               <DropdownMenuTrigger asChild>
                 <button
