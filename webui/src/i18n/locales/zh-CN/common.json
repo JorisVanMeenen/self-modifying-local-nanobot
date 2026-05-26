@@ -643,6 +643,7 @@
       "workspace": {
         "accessAria": "工作区访问权限",
         "accessLabel": "工作区权限",
+        "default": "默认权限",
         "restricted": "受限",
         "restrictedDescription": "只允许读取和编辑所选项目目录。",
         "full": "完全访问权限",

@@ -202,7 +202,7 @@ describe("ThreadComposer", () => {
     );
 
     fireEvent.pointerDown(screen.getByRole("button", { name: "Workspace access mode" }));
-    fireEvent.click(await screen.findByRole("menuitemradio", { name: /Full Access/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Full Access/ }));
 
     expect(onWorkspaceScopeChange).toHaveBeenCalledWith(
       expect.objectContaining({

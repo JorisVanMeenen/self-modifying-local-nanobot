@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
 } from "react";
 
 import { MarkdownText, preloadMarkdownText } from "@/components/MarkdownText";
@@ -27,6 +28,7 @@ import {
   ChevronDown,
   ChevronUp,
   CircleHelp,
+  Hand,
   History,
   ImageIcon,
   Loader2,
@@ -47,10 +49,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
+  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -1437,8 +1436,7 @@ function WorkspaceAccessMenu({
   const mode = scope.access_mode;
   const isFull = mode === "full";
 
-  const setMode = (value: string) => {
-    if (value !== "restricted" && value !== "full") return;
+  const setMode = (value: WorkspaceAccessMode) => {
     if (value === "full" && !canUseFullAccess) return;
     if (value === mode) return;
     onChange?.(scopeWithAccessMode(scope, value));
@@ -1452,57 +1450,76 @@ function WorkspaceAccessMenu({
           variant="ghost"
           aria-label={t("thread.composer.workspace.accessAria")}
           className={cn(
-            "h-9 max-w-[12.5rem] rounded-full border px-2.5 text-[12px] font-medium shadow-[0_2px_8px_rgba(15,23,42,0.04)]",
+            "h-9 max-w-[12.5rem] rounded-full border px-3 text-[12.5px] font-semibold shadow-[0_2px_8px_rgba(15,23,42,0.04)]",
             isFull
-              ? "border-orange-300/60 bg-orange-50 text-orange-700 hover:bg-orange-50 dark:border-orange-400/25 dark:bg-orange-950/20 dark:text-orange-300"
+              ? "border-orange-300/55 bg-orange-500/10 text-orange-600 hover:bg-orange-500/14 dark:border-orange-400/25 dark:bg-orange-500/12 dark:text-orange-300"
               : "border-border/55 bg-card text-muted-foreground hover:bg-card hover:text-foreground",
-          )}
-          title={t(
-            isFull
-              ? "thread.composer.workspace.fullDescription"
-              : "thread.composer.workspace.restrictedDescription",
           )}
         >
           {isFull ? (
             <AlertTriangle className={cn("mr-1.5 shrink-0", isHero ? "h-4 w-4" : "h-3.5 w-3.5")} />
           ) : (
-            <Shield className={cn("mr-1.5 shrink-0", isHero ? "h-4 w-4" : "h-3.5 w-3.5")} />
+            <Hand className={cn("mr-1.5 shrink-0", isHero ? "h-4 w-4" : "h-3.5 w-3.5")} />
           )}
           <span className="truncate">
-            {t(isFull ? "thread.composer.workspace.full" : "thread.composer.workspace.restricted")}
+            {t(isFull ? "thread.composer.workspace.full" : "thread.composer.workspace.default")}
           </span>
           <ChevronDown className={cn("ml-1.5 shrink-0", isHero ? "h-3.5 w-3.5" : "h-3 w-3")} />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-64">
-        <DropdownMenuLabel className="text-xs text-muted-foreground">
-          {t("thread.composer.workspace.accessLabel")}
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuRadioGroup value={mode} onValueChange={setMode}>
-          <DropdownMenuRadioItem value="restricted">
-            <div className="flex min-w-0 flex-col">
-              <span className="font-medium">
-                {t("thread.composer.workspace.restricted")}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {t("thread.composer.workspace.restrictedDescription")}
-              </span>
-            </div>
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="full" disabled={!canUseFullAccess}>
-            <div className="flex min-w-0 flex-col">
-              <span className="font-medium text-orange-700 dark:text-orange-300">
-                {t("thread.composer.workspace.full")}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {t("thread.composer.workspace.fullDescription")}
-              </span>
-            </div>
-          </DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
+      <DropdownMenuContent
+        align="start"
+        className="w-56 rounded-2xl p-1.5"
+      >
+        <AccessMenuItem
+          icon={<Hand className="h-4 w-4" />}
+          label={t("thread.composer.workspace.default")}
+          selected={mode === "restricted"}
+          onSelect={() => setMode("restricted")}
+        />
+        <AccessMenuItem
+          icon={<AlertTriangle className="h-4 w-4" />}
+          label={t("thread.composer.workspace.full")}
+          selected={mode === "full"}
+          disabled={!canUseFullAccess}
+          warning
+          onSelect={() => setMode("full")}
+        />
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function AccessMenuItem({
+  icon,
+  label,
+  selected,
+  disabled,
+  warning,
+  onSelect,
+}: {
+  icon: ReactNode;
+  label: string;
+  selected: boolean;
+  disabled?: boolean;
+  warning?: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <DropdownMenuItem
+      disabled={disabled}
+      onSelect={onSelect}
+      className={cn(
+        "flex h-10 items-center gap-3 rounded-xl px-3 text-[13.5px] font-semibold",
+        warning && "text-orange-600 focus:text-orange-600 dark:text-orange-300 dark:focus:text-orange-300",
+      )}
+    >
+      <span className="grid h-5 w-5 shrink-0 place-items-center text-current" aria-hidden>
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {selected ? <Check className="h-4 w-4 shrink-0" aria-hidden /> : null}
+    </DropdownMenuItem>
   );
 }
 
