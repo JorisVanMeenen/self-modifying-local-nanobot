@@ -1255,6 +1255,7 @@ class AgentLoop:
                     max_iterations=self.dream.max_iterations,
                     max_tool_result_chars=self.dream.max_tool_result_chars,
                     context_window_tokens=self.context_window_tokens,
+                    reasoning_effort="none",
                     fail_on_tool_error=False,
                 ))
                 elapsed = time.perf_counter() - t_start
