@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { SessionSearchDialog } from "@/components/SessionSearchDialog";
 import { SettingsView, type SettingsSectionKey } from "@/components/settings/SettingsView";
 import { ThreadShell } from "@/components/thread/ThreadShell";
+import { WorkspaceProjectDialog } from "@/components/WorkspaceProjectDialog";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
 import { useSessions } from "@/hooks/useSessions";
@@ -23,9 +24,10 @@ import {
 import { deriveTitle } from "@/lib/format";
 import { NanobotClient } from "@/lib/nanobot-client";
 import { ClientProvider, useClient } from "@/providers/ClientProvider";
-import type { ChatSummary } from "@/lib/types";
+import type { ChatSummary, WorkspaceScopePayload, WorkspacesPayload } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { fetchWorkspaces } from "@/lib/api";
 
 type BootState =
   | { status: "loading" }
@@ -147,6 +149,33 @@ function writeCompletedRunChatIds(chatIds: Set<string>): void {
   } catch {
     // ignore storage errors (private mode, etc.)
   }
+}
+
+function workspaceScopeFromLast(payload: WorkspacesPayload): WorkspaceScopePayload {
+  const last = payload.last_scope;
+  if (!last) return payload.default_scope;
+  const accessMode = last.access_mode;
+  return {
+    project_path: last.project_path,
+    project_name: last.project_name ?? projectNameFromPath(last.project_path),
+    access_mode: accessMode,
+    restrict_to_workspace: accessMode === "restricted",
+  };
+}
+
+function normalizeWorkspaceScope(scope: WorkspaceScopePayload): WorkspaceScopePayload {
+  const accessMode = scope.access_mode === "restricted" ? "restricted" : "full";
+  return {
+    ...scope,
+    project_name: scope.project_name ?? projectNameFromPath(scope.project_path),
+    access_mode: accessMode,
+    restrict_to_workspace: accessMode === "restricted",
+  };
+}
+
+function projectNameFromPath(path: string): string {
+  const normalized = path.replace(/\\/g, "/").replace(/\/+$/, "");
+  return normalized.split("/").filter(Boolean).pop() || path;
 }
 
 export default function App() {
@@ -317,7 +346,7 @@ function Shell({
   onLogout: () => void;
 }) {
   const { t, i18n } = useTranslation();
-  const { client } = useClient();
+  const { client, token } = useClient();
   const { theme, toggle } = useTheme();
   const { sessions, loading, refresh, createChat, deleteChat } = useSessions();
   const { state: sidebarState, update: updateSidebarState } =
@@ -342,6 +371,13 @@ function Shell({
   const [isRestarting, setIsRestarting] = useState(false);
   const [runningChatIds, setRunningChatIds] = useState<Set<string>>(() => new Set());
   const [completedChatIds, setCompletedChatIds] = useState<Set<string>>(readCompletedRunChatIds);
+  const [workspaces, setWorkspaces] = useState<WorkspacesPayload | null>(null);
+  const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  const [draftWorkspaceScope, setDraftWorkspaceScope] =
+    useState<WorkspaceScopePayload | null>(null);
+  const [workspaceOverrides, setWorkspaceOverrides] =
+    useState<Record<string, WorkspaceScopePayload>>({});
   const runningChatIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -365,6 +401,37 @@ function Shell({
   }, [sessions, activeKey]);
   const runningChatIdList = useMemo(() => Array.from(runningChatIds), [runningChatIds]);
   const completedChatIdList = useMemo(() => Array.from(completedChatIds), [completedChatIds]);
+  const activeChatId = activeSession?.chatId ?? null;
+  const activeWorkspaceScope = useMemo<WorkspaceScopePayload | null>(() => {
+    if (activeChatId && workspaceOverrides[activeChatId]) {
+      return workspaceOverrides[activeChatId];
+    }
+    if (activeSession?.workspaceScope) {
+      return activeSession.workspaceScope;
+    }
+    return draftWorkspaceScope ?? workspaces?.default_scope ?? null;
+  }, [
+    activeChatId,
+    activeSession?.workspaceScope,
+    draftWorkspaceScope,
+    workspaceOverrides,
+    workspaces?.default_scope,
+  ]);
+  const activeChatRunning = activeChatId ? runningChatIds.has(activeChatId) : false;
+
+  const refreshWorkspaces = useCallback(async () => {
+    try {
+      const payload = await fetchWorkspaces(token);
+      setWorkspaces(payload);
+      setDraftWorkspaceScope((current) => current ?? workspaceScopeFromLast(payload));
+    } catch {
+      setWorkspaces(null);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void refreshWorkspaces();
+  }, [refreshWorkspaces]);
 
   useEffect(() => {
     if (loading) return;
@@ -375,7 +442,34 @@ function Shell({
       );
       return next.size === current.size ? current : next;
     });
+    setWorkspaceOverrides((current) => {
+      const entries = Object.entries(current).filter(([chatId]) => knownChatIds.has(chatId));
+      return entries.length === Object.keys(current).length ? current : Object.fromEntries(entries);
+    });
   }, [loading, sessions]);
+
+  useEffect(() => {
+    return client.onSessionUpdate((_chatId, _scope, workspaceScope) => {
+      if (!workspaceScope) return;
+      const next = normalizeWorkspaceScope(workspaceScope);
+      setWorkspaceOverrides((current) => ({
+        ...current,
+        [_chatId]: next,
+      }));
+      setDraftWorkspaceScope(next);
+      setWorkspaceError(null);
+      void refreshWorkspaces();
+    });
+  }, [client, refreshWorkspaces]);
+
+  useEffect(() => {
+    return client.onError((error) => {
+      if (error.kind !== "workspace_scope_rejected") return;
+      setWorkspaceError(t("errors.workspaceScopeRejected.body"));
+      setWorkspacePickerOpen(true);
+      void refreshWorkspaces();
+    });
+  }, [client, refreshWorkspaces, t]);
 
   useEffect(() => {
     if (loading) return;
@@ -431,18 +525,44 @@ function Shell({
     }
   }, []);
 
-  const onCreateChat = useCallback(async () => {
+  const applyWorkspaceScope = useCallback(
+    (scope: WorkspaceScopePayload) => {
+      const next = normalizeWorkspaceScope(scope);
+      setWorkspaceError(null);
+      if (activeChatId) {
+        if (!activeChatRunning) {
+          client.setWorkspaceScope(activeChatId, next);
+        }
+        return;
+      }
+      setDraftWorkspaceScope(next);
+    },
+    [activeChatId, activeChatRunning, client],
+  );
+
+  const onCreateChat = useCallback(async (workspaceScope?: WorkspaceScopePayload | null) => {
     try {
-      const chatId = await createChat();
+      const scope = workspaceScope ?? activeWorkspaceScope;
+      const chatId = await createChat(scope);
       setActiveKey(`websocket:${chatId}`);
       setView("chat");
       setMobileSidebarOpen(false);
+      if (scope) {
+        setWorkspaceOverrides((current) => ({
+          ...current,
+          [chatId]: normalizeWorkspaceScope(scope),
+        }));
+      }
       return chatId;
     } catch (e) {
       console.error("Failed to create chat", e);
+      if (e instanceof Error && e.message.startsWith("workspace_scope_rejected:")) {
+        setWorkspaceError(t("errors.workspaceScopeRejected.body"));
+        setWorkspacePickerOpen(true);
+      }
       return null;
     }
-  }, [createChat]);
+  }, [activeWorkspaceScope, createChat, t]);
 
   const onNewChat = useCallback(() => {
     setActiveKey(null);
@@ -452,7 +572,8 @@ function Shell({
 
   const onSelectChat = useCallback(
     (key: string) => {
-      const selectedChatId = sessions.find((session) => session.key === key)?.chatId;
+      const selected = sessions.find((session) => session.key === key);
+      const selectedChatId = selected?.chatId;
       if (selectedChatId) {
         setCompletedChatIds((current) => {
           if (!current.has(selectedChatId)) return current;
@@ -460,6 +581,9 @@ function Shell({
           next.delete(selectedChatId);
           return next;
         });
+      }
+      if (selected?.workspaceScope) {
+        setDraftWorkspaceScope(normalizeWorkspaceScope(selected.workspaceScope));
       }
       setActiveKey(key);
       setView("chat");
@@ -756,6 +880,9 @@ function Shell({
     viewState: sidebarState.view,
     showArchived: sidebarState.view.show_archived,
     archivedCount: sidebarState.archived_keys.length,
+    workspaceScope: activeWorkspaceScope,
+    workspaceScopeDisabled: activeChatRunning,
+    onOpenWorkspacePicker: () => setWorkspacePickerOpen(true),
   };
   const showMainSidebar = view !== "settings";
 
@@ -817,6 +944,17 @@ function Shell({
           titleOverrides={sidebarState.title_overrides}
           onSelect={onSelectSearchResult}
         />
+        <WorkspaceProjectDialog
+          open={workspacePickerOpen}
+          onOpenChange={setWorkspacePickerOpen}
+          scope={activeWorkspaceScope}
+          defaultScope={workspaces?.default_scope ?? null}
+          recentProjects={workspaces?.recent_projects ?? []}
+          canUseFullAccess={workspaces?.controls.can_use_full_access !== false}
+          disabled={activeChatRunning}
+          serverError={workspaceError}
+          onApply={applyWorkspaceScope}
+        />
 
         <main className="relative flex h-full min-w-0 flex-1 flex-col">
           <div
@@ -835,6 +973,10 @@ function Shell({
               theme={theme}
               onToggleTheme={toggle}
               hideSidebarToggleOnDesktop
+              workspaceScope={activeWorkspaceScope}
+              workspaceControls={workspaces?.controls ?? null}
+              workspaceScopeDisabled={activeChatRunning}
+              onWorkspaceScopeChange={applyWorkspaceScope}
             />
           </div>
           {view !== "chat" && (

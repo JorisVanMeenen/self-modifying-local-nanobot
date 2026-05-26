@@ -64,7 +64,10 @@
       "label": "Language",
       "ariaLabel": "Change language"
     },
-    "apps": "Apps"
+    "apps": "Apps",
+    "project": {
+      "change": "Change project workspace"
+    }
   },
   "settings": {
     "backToChat": "Back to chat",
@@ -635,6 +638,14 @@
         "decode_failed": "Couldn't decode this image",
         "too_large": "Image is too large — try a smaller one",
         "io": "Couldn't read this file"
+      },
+      "workspace": {
+        "accessAria": "Workspace access mode",
+        "accessLabel": "Workspace access",
+        "restricted": "Restricted",
+        "restrictedDescription": "Read and edit inside the selected project only.",
+        "full": "Full Access",
+        "fullDescription": "Allow access outside the project folder."
       }
     },
     "scrollToBottom": "Scroll to bottom",
@@ -693,6 +704,24 @@
     "messageTooBig": {
       "title": "Message too large",
       "body": "The server rejected your last message because it exceeded the size limit. Remove some images or try smaller files, then send again."
+    },
+    "workspaceScopeRejected": {
+      "title": "Workspace was not changed",
+      "body": "Nanobot kept the previous workspace because the requested project or access mode was rejected by the gateway."
+    }
+  },
+  "workspace": {
+    "dialog": {
+      "title": "Choose Project",
+      "description": "Bind this WebUI chat to a project folder and choose how much local access the agent has.",
+      "projects": "Projects",
+      "defaultProject": "Default workspace",
+      "access": "Access",
+      "manual": "Manual path",
+      "manualPlaceholder": "/Users/name/project",
+      "usePath": "Use Path",
+      "absolutePathRequired": "Enter an absolute folder path on this machine.",
+      "done": "Done"
     }
   }
 }

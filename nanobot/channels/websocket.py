@@ -31,6 +31,14 @@ from websockets.http11 import Request as WsRequest
 from websockets.http11 import Response
 
 from nanobot.agent.tools.mcp import request_mcp_reload
+from nanobot.agent.workspace_scope import (
+    WORKSPACE_SCOPE_METADATA_KEY,
+    WorkspaceScope,
+    WorkspaceScopeError,
+    default_workspace_scope,
+    validate_workspace_scope_payload,
+    workspace_scope_from_metadata,
+)
 from nanobot.bus.events import OUTBOUND_META_AGENT_UI, OutboundMessage
 from nanobot.bus.queue import MessageBus
 from nanobot.channels.base import BaseChannel
@@ -72,6 +80,10 @@ from nanobot.webui.transcript import (
     append_transcript_object,
     build_webui_thread_response,
     rewrite_local_markdown_images,
+)
+from nanobot.webui.workspaces import (
+    remember_workspace_scope,
+    workspaces_payload,
 )
 
 _MCP_PRESET_ACTIONS_BY_PATH = {
@@ -503,6 +515,7 @@ class WebSocketChannel(BaseChannel):
         session_manager: "SessionManager | None" = None,
         static_dist_path: Path | None = None,
         workspace_path: Path | None = None,
+        restrict_to_workspace: bool = False,
         runtime_model_name: Callable[[], str | None] | None = None,
     ):
         if isinstance(config, dict):
@@ -530,6 +543,7 @@ class WebSocketChannel(BaseChannel):
             if workspace_path is not None
             else get_workspace_path()
         ).resolve(strict=False)
+        self._default_restrict_to_workspace = restrict_to_workspace
         self._runtime_model_name = runtime_model_name
         self._settings_restart_sections: set[str] = set()
         self._stream_text_buffers: dict[tuple[str, str], list[str]] = {}
@@ -695,6 +709,9 @@ class WebSocketChannel(BaseChannel):
         if got == "/api/commands":
             return self._handle_commands(request)
 
+        if got == "/api/workspaces":
+            return self._handle_workspaces(connection, request)
+
         if got == "/api/webui/sidebar-state":
             return self._handle_webui_sidebar_state(request)
 
@@ -859,8 +876,38 @@ class WebSocketChannel(BaseChannel):
             started_at = websocket_turn_wall_started_at(chat_id)
             if started_at is not None:
                 row["run_started_at"] = started_at
+            scope = self._workspace_scope_for_session_key(key)
+            row["workspace_scope"] = scope.payload()
             cleaned.append(row)
         return _http_json_response({"sessions": cleaned})
+
+    def _default_workspace_scope(self) -> WorkspaceScope:
+        return default_workspace_scope(
+            self._workspace_path,
+            self._default_restrict_to_workspace,
+        )
+
+    def _workspace_scope_for_session_key(self, session_key: str) -> WorkspaceScope:
+        if self._session_manager is None:
+            return self._default_workspace_scope()
+        data = self._session_manager.read_session_file(session_key)
+        metadata = data.get("metadata", {}) if isinstance(data, dict) else {}
+        return workspace_scope_from_metadata(
+            metadata,
+            default_workspace=self._workspace_path,
+            default_restrict_to_workspace=self._default_restrict_to_workspace,
+        )
+
+    def _handle_workspaces(self, connection: Any, request: WsRequest) -> Response:
+        if not self._check_api_token(request):
+            return _http_error(401, "Unauthorized")
+        return _http_json_response(
+            workspaces_payload(
+                default_workspace=self._workspace_path,
+                default_restrict_to_workspace=self._default_restrict_to_workspace,
+                controls_available=_is_localhost(connection),
+            )
+        )
 
     def _handle_settings(self, request: WsRequest) -> Response:
         if not self._check_api_token(request):
@@ -1058,13 +1105,19 @@ class WebSocketChannel(BaseChannel):
             return _http_error(400, "invalid session key")
         if not self._is_websocket_channel_session_key(decoded_key):
             return _http_error(404, "session not found")
+        scope = self._workspace_scope_for_session_key(decoded_key)
         data = build_webui_thread_response(
             decoded_key,
             augment_user_media=self._augment_transcript_user_media,
-            augment_assistant_text=self._rewrite_local_markdown_images,
+            augment_assistant_text=lambda text: rewrite_local_markdown_images(
+                text,
+                workspace_path=scope.project_path,
+                sign_path=self._sign_or_stage_media_path,
+            ),
         )
         if data is None:
             return _http_error(404, "webui thread not found")
+        data["workspace_scope"] = scope.payload()
         return _http_json_response(data)
 
     def _try_append_webui_transcript(self, chat_id: str, wire: dict[str, Any]) -> None:
@@ -1530,8 +1583,19 @@ class WebSocketChannel(BaseChannel):
         t = envelope.get("type")
         if t == "new_chat":
             new_id = str(uuid.uuid4())
+            scope = await self._scope_from_envelope(connection, envelope)
+            if scope is None:
+                return
+            self._persist_workspace_scope(new_id, scope)
             self._attach(connection, new_id)
             await self._send_event(connection, "attached", chat_id=new_id)
+            await self._send_event(
+                connection,
+                "session_updated",
+                chat_id=new_id,
+                scope="metadata",
+                workspace_scope=scope.payload(),
+            )
             await self._hydrate_after_subscribe(new_id)
             return
         if t == "attach":
@@ -1542,6 +1606,37 @@ class WebSocketChannel(BaseChannel):
             self._attach(connection, cid)
             await self._send_event(connection, "attached", chat_id=cid)
             await self._hydrate_after_subscribe(cid)
+            return
+        if t == "set_workspace_scope":
+            cid = envelope.get("chat_id")
+            if not _is_valid_chat_id(cid):
+                await self._send_event(connection, "error", detail="invalid chat_id")
+                return
+            if websocket_turn_wall_started_at(cid) is not None:
+                await self._send_event(
+                    connection,
+                    "error",
+                    detail="workspace_scope_rejected",
+                    reason="chat_running",
+                    chat_id=cid,
+                )
+                return
+            scope = await self._scope_from_envelope(
+                connection,
+                envelope,
+                session_key=f"websocket:{cid}",
+                chat_id=cid,
+            )
+            if scope is None:
+                return
+            self._persist_workspace_scope(cid, scope)
+            await self._send_event(
+                connection,
+                "session_updated",
+                chat_id=cid,
+                scope="metadata",
+                workspace_scope=scope.payload(),
+            )
             return
         if t == "message":
             cid = envelope.get("chat_id")
@@ -1574,6 +1669,28 @@ class WebSocketChannel(BaseChannel):
             if not content.strip() and not media_paths:
                 await self._send_event(connection, "error", detail="missing content")
                 return
+            scope = await self._scope_from_envelope(
+                connection,
+                envelope,
+                session_key=f"websocket:{cid}",
+                chat_id=cid,
+            )
+            if scope is None:
+                return
+            if (
+                WORKSPACE_SCOPE_METADATA_KEY in envelope
+                and websocket_turn_wall_started_at(cid) is not None
+                and scope.metadata()
+                != self._workspace_scope_for_session_key(f"websocket:{cid}").metadata()
+            ):
+                await self._send_event(
+                    connection,
+                    "error",
+                    detail="workspace_scope_rejected",
+                    reason="chat_running",
+                    chat_id=cid,
+                )
+                return
 
             # Auto-attach on first use so clients can one-shot without a separate attach.
             self._attach(connection, cid)
@@ -1587,6 +1704,8 @@ class WebSocketChannel(BaseChannel):
             mcp_presets = normalize_mcp_preset_mentions(envelope.get("mcp_presets"))
             if mcp_presets:
                 metadata["mcp_presets"] = mcp_presets
+            metadata[WORKSPACE_SCOPE_METADATA_KEY] = scope.metadata()
+            self._persist_workspace_scope(cid, scope)
             image_generation = envelope.get("image_generation")
             if isinstance(image_generation, dict) and image_generation.get("enabled") is True:
                 aspect_ratio = image_generation.get("aspect_ratio")
@@ -1604,6 +1723,57 @@ class WebSocketChannel(BaseChannel):
             )
             return
         await self._send_event(connection, "error", detail=f"unknown type: {t!r}")
+
+    async def _scope_from_envelope(
+        self,
+        connection: Any,
+        envelope: dict[str, Any],
+        *,
+        session_key: str | None = None,
+        chat_id: str | None = None,
+    ) -> WorkspaceScope | None:
+        raw = envelope.get(WORKSPACE_SCOPE_METADATA_KEY)
+        if raw is None and session_key:
+            scope = self._workspace_scope_for_session_key(session_key)
+        else:
+            try:
+                scope = validate_workspace_scope_payload(
+                    raw,
+                    default_workspace=self._workspace_path,
+                    default_restrict_to_workspace=self._default_restrict_to_workspace,
+                )
+            except WorkspaceScopeError as exc:
+                await self._send_event(
+                    connection,
+                    "error",
+                    detail="workspace_scope_rejected",
+                    reason=exc.message,
+                    **({"chat_id": chat_id} if chat_id else {}),
+                )
+                return None
+        if not _is_localhost(connection):
+            default_scope = self._default_workspace_scope()
+            if scope.metadata() != default_scope.metadata():
+                await self._send_event(
+                    connection,
+                    "error",
+                    detail="workspace_scope_rejected",
+                    reason="workspace controls are localhost-only",
+                    **({"chat_id": chat_id} if chat_id else {}),
+                )
+                return None
+        return scope
+
+    def _persist_workspace_scope(self, chat_id: str, scope: WorkspaceScope) -> None:
+        if self._session_manager is not None:
+            session = self._session_manager.get_or_create(f"websocket:{chat_id}")
+            session.metadata["webui"] = True
+            session.metadata[WORKSPACE_SCOPE_METADATA_KEY] = scope.metadata()
+            self._session_manager.save(session)
+        try:
+            remember_workspace_scope(scope)
+        except Exception as exc:
+            self.logger.warning("failed to persist WebUI workspace state: {}", exc)
 
     async def stop(self) -> None:
         if not self._running:

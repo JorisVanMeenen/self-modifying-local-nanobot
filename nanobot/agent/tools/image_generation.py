@@ -14,6 +14,7 @@ from nanobot.agent.tools.schema import (
     StringSchema,
     tool_parameters_schema,
 )
+from nanobot.agent.workspace_scope import current_workspace_scope
 from nanobot.config.paths import get_media_dir
 from nanobot.config.schema import Base
 from nanobot.providers.image_generation import (
@@ -132,20 +133,23 @@ class ImageGenerationTool(Tool):
         return cls(**kwargs)
 
     def _resolve_reference_image(self, value: str) -> str:
+        scope = current_workspace_scope()
+        workspace = scope.project_path if scope is not None else self.workspace
+        allowed_root = workspace if scope is None or scope.restrict_to_workspace else None
         try:
             resolved = resolve_allowed_path(
                 value,
-                workspace=self.workspace,
-                allowed_root=self.workspace,
-                extra_allowed_roots=[get_media_dir()],
+                workspace=workspace,
+                allowed_root=allowed_root,
+                extra_allowed_roots=[get_media_dir()] if allowed_root is not None else None,
                 strict=True,
             )
-        except OSError as exc:
-            raise ImageGenerationError(f"reference image not found: {value}") from exc
         except WorkspaceBoundaryError as exc:
             raise ImageGenerationError(
                 "reference_images must be inside the workspace or nanobot media directory"
             ) from exc
+        except OSError as exc:
+            raise ImageGenerationError(f"reference image not found: {value}") from exc
         if not resolved.is_file():
             raise ImageGenerationError(f"reference image is not a file: {value}")
         raw = resolved.read_bytes()

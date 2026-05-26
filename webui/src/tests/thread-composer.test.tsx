@@ -184,6 +184,35 @@ describe("ThreadComposer", () => {
     expect(screen.getByRole("button", { name: "Send message" }).className).toContain("bg-foreground");
   });
 
+  it("renders and changes workspace access mode", async () => {
+    const onWorkspaceScopeChange = vi.fn();
+    render(
+      <ThreadComposer
+        onSend={vi.fn()}
+        placeholder="Type your message..."
+        workspaceScope={{
+          project_path: "/tmp/project",
+          project_name: "project",
+          access_mode: "restricted",
+          restrict_to_workspace: true,
+        }}
+        workspaceControls={{ can_change_project: true, can_use_full_access: true }}
+        onWorkspaceScopeChange={onWorkspaceScopeChange}
+      />,
+    );
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Workspace access mode" }));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /Full Access/ }));
+
+    expect(onWorkspaceScopeChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        project_path: "/tmp/project",
+        access_mode: "full",
+        restrict_to_workspace: false,
+      }),
+    );
+  });
+
   it("shows turn run timer when runStartedAt is set", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date((1_000 + 125) * 1000));

@@ -25,8 +25,17 @@ from nanobot.agent.runner import _MAX_INJECTIONS_PER_TURN, AgentRunner, AgentRun
 from nanobot.agent.subagent import SubagentManager
 from nanobot.agent.tools.file_state import FileStateStore, bind_file_states, reset_file_states
 from nanobot.agent.tools.message import MessageTool
+from nanobot.agent.tools.context import RequestContext, bind_request_context, reset_request_context
 from nanobot.agent.tools.registry import ToolRegistry
 from nanobot.agent.tools.self import MyTool
+from nanobot.agent.workspace_scope import (
+    WorkspaceScope,
+    WORKSPACE_SCOPE_METADATA_KEY,
+    bind_workspace_scope,
+    default_workspace_scope,
+    reset_workspace_scope,
+    resolve_effective_workspace_scope,
+)
 from nanobot.bus.events import InboundMessage, OutboundMessage
 from nanobot.bus.queue import MessageBus
 from nanobot.command import CommandContext, CommandRouter, register_builtin_commands
@@ -115,6 +124,7 @@ class TurnContext:
 
     pending_queue: asyncio.Queue | None = None
     pending_summary: str | None = None
+    workspace_scope: WorkspaceScope | None = None
 
     turn_wall_started_at: float = field(default_factory=time.time)
     turn_latency_ms: int | None = None
@@ -499,7 +509,7 @@ class AgentLoop:
         session_key: str | None = None,
     ) -> None:
         """Update context for all tools that need routing info."""
-        from nanobot.agent.tools.context import ContextAware, RequestContext
+        from nanobot.agent.tools.context import ContextAware
 
         if session_key is not None:
             effective_key = session_key
@@ -579,8 +589,10 @@ class AgentLoop:
         session: Session,
         history: list[dict[str, Any]],
         pending_summary: str | None,
+        workspace_scope: WorkspaceScope | None = None,
     ) -> list[dict[str, Any]]:
         """Build the initial message list for the LLM turn."""
+        scope = workspace_scope or self._workspace_scope_for(msg, session.metadata)
         return self.context.build_messages(
             history=history,
             current_message=image_generation_prompt(msg.content, msg.metadata),
@@ -589,8 +601,35 @@ class AgentLoop:
             chat_id=self._runtime_chat_id(msg),
             sender_id=msg.sender_id,
             session_summary=pending_summary,
-            session_metadata=session.metadata, current_runtime_lines=agent_context.runtime_lines(self, msg, self.context.workspace),
+            session_metadata=session.metadata,
+            current_runtime_lines=agent_context.runtime_lines(self, msg, scope.project_path),
+            workspace=scope.project_path,
         )
+
+    def _default_workspace_scope(self) -> WorkspaceScope:
+        return default_workspace_scope(self.workspace, self.restrict_to_workspace)
+
+    def _workspace_scope_for(
+        self,
+        msg: InboundMessage,
+        session_metadata: dict[str, Any] | None,
+    ) -> WorkspaceScope:
+        if msg.channel != "websocket":
+            return self._default_workspace_scope()
+        return resolve_effective_workspace_scope(
+            message_metadata=msg.metadata,
+            session_metadata=session_metadata,
+            default_workspace=self.workspace,
+            default_restrict_to_workspace=self.restrict_to_workspace,
+        )
+
+    @staticmethod
+    def _persist_message_workspace_scope(session: Session, msg: InboundMessage) -> None:
+        if msg.channel != "websocket":
+            return
+        raw = msg.metadata.get(WORKSPACE_SCOPE_METADATA_KEY)
+        if isinstance(raw, dict):
+            session.metadata[WORKSPACE_SCOPE_METADATA_KEY] = dict(raw)
 
     async def _dispatch_command_inline(
         self,
@@ -653,6 +692,7 @@ class AgentLoop:
         metadata: dict[str, Any] | None = None,
         session_key: str | None = None,
         pending_queue: asyncio.Queue | None = None,
+        workspace_scope: WorkspaceScope | None = None,
     ) -> tuple[str | None, list[str], list[dict], str, bool]:
         """Run the agent iteration loop.
 
@@ -739,7 +779,17 @@ class AgentLoop:
             return items
 
         active_session_key = session.key if session else session_key
+        effective_scope = workspace_scope or self._default_workspace_scope()
+        request_ctx = RequestContext(
+            channel=channel,
+            chat_id=chat_id,
+            message_id=message_id,
+            session_key=active_session_key,
+            metadata=dict(metadata or {}),
+        )
         file_state_token = bind_file_states(self._file_state_store.for_session(active_session_key))
+        request_token = bind_request_context(request_ctx)
+        workspace_token = bind_workspace_scope(effective_scope)
         # Build continuation message that embeds the active goal objective so
         # the LLM can see it even if earlier Runtime Context was truncated.
         _goal_lines = goal_state_runtime_lines(session.metadata if session is not None else None)
@@ -759,7 +809,7 @@ class AgentLoop:
                 hook=hook,
                 error_message="Sorry, I encountered an error calling the AI model.",
                 concurrent_tools=True,
-                workspace=self.workspace,
+                workspace=effective_scope.project_path,
                 session_key=session.key if session else None,
                 context_window_tokens=self.context_window_tokens,
                 context_block_limit=self.context_block_limit,
@@ -780,6 +830,8 @@ class AgentLoop:
                 goal_continue_message=_goal_continue,
             ))
         finally:
+            reset_workspace_scope(workspace_token)
+            reset_request_context(request_token)
             reset_file_states(file_state_token)
         self._last_usage = result.usage
         if result.stop_reason == "max_iterations":
@@ -1058,6 +1110,7 @@ class AgentLoop:
         }
         history = session.get_history(**_hist_kwargs)
         current_role = "assistant" if is_subagent else "user"
+        workspace_scope = self._workspace_scope_for(msg, session.metadata)
 
         messages = self.context.build_messages(
             history=history,
@@ -1067,7 +1120,14 @@ class AgentLoop:
             current_role=current_role,
             sender_id=msg.sender_id,
             session_summary=pending,
-            session_metadata=session.metadata, current_runtime_lines=agent_context.runtime_lines(self, msg, self.context.workspace, skip=is_subagent),
+            session_metadata=session.metadata,
+            current_runtime_lines=agent_context.runtime_lines(
+                self,
+                msg,
+                workspace_scope.project_path,
+                skip=is_subagent,
+            ),
+            workspace=workspace_scope.project_path,
         )
         t_wall = time.time()
         final_content, _, all_msgs, stop_reason, _ = await self._run_agent_loop(
@@ -1076,6 +1136,7 @@ class AgentLoop:
             metadata=msg.metadata,
             session_key=key,
             pending_queue=pending_queue,
+            workspace_scope=workspace_scope,
         )
         wall_done = time.time()
         latency_ms = max(0, int((wall_done - t_wall) * 1000))
@@ -1243,6 +1304,7 @@ class AgentLoop:
         if ctx.session is None:
             ctx.session = self.sessions.get_or_create(ctx.session_key)
         mark_webui_session(ctx.session, msg.metadata)
+        self._persist_message_workspace_scope(ctx.session, msg)
 
         if self._restore_runtime_checkpoint(ctx.session):
             self.sessions.save(ctx.session)
@@ -1286,6 +1348,7 @@ class AgentLoop:
             ctx.session,
             replay_max_messages=self._max_messages,
         )
+        ctx.workspace_scope = self._workspace_scope_for(ctx.msg, ctx.session.metadata)
         self._set_tool_context(
             ctx.msg.channel,
             ctx.msg.chat_id,
@@ -1310,7 +1373,11 @@ class AgentLoop:
         )
 
         ctx.initial_messages = self._build_initial_messages(
-            ctx.msg, ctx.session, ctx.history, ctx.pending_summary
+            ctx.msg,
+            ctx.session,
+            ctx.history,
+            ctx.pending_summary,
+            ctx.workspace_scope,
         )
         ctx.user_persisted_early = self._persist_user_message_early(
             ctx.msg, ctx.session
@@ -1338,6 +1405,7 @@ class AgentLoop:
             metadata=ctx.msg.metadata,
             session_key=ctx.session_key,
             pending_queue=ctx.pending_queue,
+            workspace_scope=ctx.workspace_scope,
         )
         final_content, tools_used, all_msgs, stop_reason, had_injections = result
         ctx.final_content = final_content

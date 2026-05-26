@@ -1,9 +1,12 @@
 import { useState, type ReactNode } from "react";
 import {
   Archive,
+  AlertTriangle,
   ListFilter,
+  Folder,
   Menu,
   Search,
+  Shield,
   Settings,
   SquarePen,
   Blocks,
@@ -28,6 +31,7 @@ import type {
   ChatSummary,
   SidebarSortMode,
   SidebarViewState,
+  WorkspaceScopePayload,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -59,6 +63,9 @@ interface SidebarProps {
   viewState?: SidebarViewState;
   showArchived?: boolean;
   archivedCount?: number;
+  workspaceScope?: WorkspaceScopePayload | null;
+  workspaceScopeDisabled?: boolean;
+  onOpenWorkspacePicker?: () => void;
 }
 
 export function Sidebar(props: SidebarProps) {
@@ -113,6 +120,15 @@ export function Sidebar(props: SidebarProps) {
           </Button>
         )}
       </div>
+
+      {props.workspaceScope ? (
+        <SidebarProjectButton
+          scope={props.workspaceScope}
+          collapsed={collapsed}
+          disabled={props.workspaceScopeDisabled}
+          onClick={props.onOpenWorkspacePicker}
+        />
+      ) : null}
 
       <div
         className={cn(
@@ -260,6 +276,97 @@ function SidebarActionButton({
       </span>
     </Button>
   );
+}
+
+function SidebarProjectButton({
+  scope,
+  collapsed,
+  disabled,
+  onClick,
+}: {
+  scope: WorkspaceScopePayload;
+  collapsed: boolean;
+  disabled?: boolean;
+  onClick?: () => void;
+}) {
+  const { t } = useTranslation();
+  const isFull = scope.access_mode === "full";
+  const label = scope.project_name || projectName(scope.project_path);
+  const subtitle = shortPath(scope.project_path);
+
+  return (
+    <div className={cn("px-2 pb-2", collapsed && "flex w-14 justify-center px-0")}>
+      <Button
+        type="button"
+        variant="ghost"
+        disabled={disabled || !onClick}
+        aria-label={t("sidebar.project.change")}
+        title={collapsed ? label : undefined}
+        onClick={() => onClick?.()}
+        className={cn(
+          "min-w-0 overflow-hidden border border-transparent text-left text-sidebar-foreground/85 hover:bg-sidebar-accent/75 hover:text-sidebar-foreground",
+          "transition-[width,height,padding,border-radius,color,background-color] duration-300 ease-out",
+          collapsed
+            ? "h-9 w-9 rounded-xl px-0"
+            : "h-auto w-full justify-start rounded-[16px] px-2.5 py-2",
+        )}
+      >
+        <span
+          className={cn(
+            "grid shrink-0 place-items-center rounded-xl bg-sidebar-accent/70",
+            collapsed ? "h-8 w-8" : "mr-2 h-9 w-9",
+          )}
+          aria-hidden
+        >
+          <Folder className="h-4 w-4" />
+        </span>
+        {!collapsed ? (
+          <>
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="truncate text-[12.5px] font-semibold leading-4">
+                {label}
+              </span>
+              <span className="truncate text-[11px] leading-4 text-muted-foreground">
+                {subtitle}
+              </span>
+            </span>
+            <span
+              className={cn(
+                "ml-2 grid h-7 w-7 shrink-0 place-items-center rounded-full",
+                isFull
+                  ? "bg-orange-500/10 text-orange-600 dark:text-orange-300"
+                  : "bg-sidebar-accent text-muted-foreground",
+              )}
+              title={t(
+                isFull
+                  ? "thread.composer.workspace.full"
+                  : "thread.composer.workspace.restricted",
+              )}
+              aria-hidden
+            >
+              {isFull ? (
+                <AlertTriangle className="h-3.5 w-3.5" />
+              ) : (
+                <Shield className="h-3.5 w-3.5" />
+              )}
+            </span>
+          </>
+        ) : null}
+      </Button>
+    </div>
+  );
+}
+
+function projectName(path: string): string {
+  const normalized = path.replace(/\\/g, "/").replace(/\/+$/, "");
+  return normalized.split("/").filter(Boolean).pop() || path;
+}
+
+function shortPath(path: string): string {
+  const normalized = path.replace(/\\/g, "/");
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.length <= 3) return path;
+  return `…/${parts.slice(-3).join("/")}`;
 }
 
 function SidebarViewMenu({

@@ -111,6 +111,7 @@ class ChannelManager:
                         if static_path is not None:
                             kwargs["static_dist_path"] = static_path
                     kwargs["workspace_path"] = self.config.workspace_path
+                    kwargs["restrict_to_workspace"] = self.config.tools.restrict_to_workspace
                     if self._webui_runtime_model_name is not None:
                         kwargs["runtime_model_name"] = self._webui_runtime_model_name
                 channel = cls(section, self.bus, **kwargs)

@@ -10,7 +10,9 @@ import type {
   SidebarStatePayload,
   SlashCommand,
   WebSearchSettingsUpdate,
+  WorkspacesPayload,
   WebuiThreadPersistedPayload,
+  WorkspaceScopePayload,
 } from "./types";
 
 export class ApiError extends Error {
@@ -73,6 +75,7 @@ export async function listSessions(
     title?: string;
     preview?: string;
     run_started_at?: number | null;
+    workspace_scope?: WorkspaceScopePayload | null;
   };
   const body = await request<{ sessions: Row[] }>(
     `${base}/api/sessions`,
@@ -86,6 +89,7 @@ export async function listSessions(
     title: s.title ?? "",
     preview: s.preview ?? "",
     runStartedAt: s.run_started_at ?? null,
+    workspaceScope: s.workspace_scope ?? null,
   }));
 }
 
@@ -122,6 +126,13 @@ export async function fetchSettings(
   base: string = "",
 ): Promise<SettingsPayload> {
   return request<SettingsPayload>(`${base}/api/settings`, token);
+}
+
+export async function fetchWorkspaces(
+  token: string,
+  base: string = "",
+): Promise<WorkspacesPayload> {
+  return request<WorkspacesPayload>(`${base}/api/workspaces`, token);
 }
 
 export async function fetchCliApps(

@@ -64,7 +64,10 @@
       "label": "語言",
       "ariaLabel": "切換語言"
     },
-    "apps": "應用"
+    "apps": "應用",
+    "project": {
+      "change": "更改專案工作區"
+    }
   },
   "settings": {
     "backToChat": "返回對話",
@@ -635,6 +638,14 @@
         "mcpBadge": "MCP",
         "cliDescription": "使用 @{{name}} 呼叫本機 CLI",
         "mcpDescription": "使用 @{{name}} 呼叫 MCP 服務"
+      },
+      "workspace": {
+        "accessAria": "工作區存取權限",
+        "accessLabel": "工作區權限",
+        "restricted": "受限",
+        "restrictedDescription": "只允許讀取和編輯所選專案目錄。",
+        "full": "完全存取權限",
+        "fullDescription": "允許存取專案目錄之外的路徑。"
       }
     },
     "scrollToBottom": "捲動到底部",
@@ -693,6 +704,24 @@
     "messageTooBig": {
       "title": "訊息過大",
       "body": "伺服器因超過大小限制拒收了上一則訊息。可移除部分圖片或改用較小的圖片後再試。"
+    },
+    "workspaceScopeRejected": {
+      "title": "工作區未變更",
+      "body": "閘道拒絕了要求的專案或存取權限，Nanobot 已繼續使用先前的工作區。"
+    }
+  },
+  "workspace": {
+    "dialog": {
+      "title": "選擇專案",
+      "description": "為這個 WebUI 對話綁定專案目錄，並選擇 agent 的本機存取權限。",
+      "projects": "專案",
+      "defaultProject": "預設工作區",
+      "access": "存取權限",
+      "manual": "手動路徑",
+      "manualPlaceholder": "/Users/name/project",
+      "usePath": "使用路徑",
+      "absolutePathRequired": "請輸入這台機器上的絕對資料夾路徑。",
+      "done": "完成"
     }
   }
 }

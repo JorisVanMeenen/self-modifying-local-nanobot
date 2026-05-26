@@ -64,7 +64,10 @@
       "label": "Ngôn ngữ",
       "ariaLabel": "Đổi ngôn ngữ"
     },
-    "apps": "Ứng dụng"
+    "apps": "Ứng dụng",
+    "project": {
+      "change": "Change project workspace"
+    }
   },
   "settings": {
     "backToChat": "Quay lại trò chuyện",
@@ -635,6 +638,14 @@
         "mcpBadge": "MCP",
         "cliDescription": "Dùng @{{name}} như ứng dụng CLI cục bộ",
         "mcpDescription": "Dùng @{{name}} như máy chủ MCP"
+      },
+      "workspace": {
+        "accessAria": "Workspace access mode",
+        "accessLabel": "Workspace access",
+        "restricted": "Restricted",
+        "restrictedDescription": "Read and edit inside the selected project only.",
+        "full": "Full Access",
+        "fullDescription": "Allow access outside the project folder."
       }
     },
     "scrollToBottom": "Cuộn xuống cuối",
@@ -693,6 +704,24 @@
     "messageTooBig": {
       "title": "Tin nhắn quá lớn",
       "body": "Máy chủ đã từ chối tin nhắn trước vì vượt quá giới hạn kích thước. Hãy bớt ảnh hoặc chọn tệp nhỏ hơn rồi thử lại."
+    },
+    "workspaceScopeRejected": {
+      "title": "Workspace was not changed",
+      "body": "Nanobot kept the previous workspace because the requested project or access mode was rejected by the gateway."
+    }
+  },
+  "workspace": {
+    "dialog": {
+      "title": "Choose Project",
+      "description": "Bind this WebUI chat to a project folder and choose how much local access the agent has.",
+      "projects": "Projects",
+      "defaultProject": "Default workspace",
+      "access": "Access",
+      "manual": "Manual path",
+      "manualPlaceholder": "/Users/name/project",
+      "usePath": "Use Path",
+      "absolutePathRequired": "Enter an absolute folder path on this machine.",
+      "done": "Done"
     }
   }
 }

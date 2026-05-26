@@ -7,6 +7,7 @@ import {
   fetchMcpPresets,
   fetchSidebarState,
   fetchWebuiThread,
+  fetchWorkspaces,
   importMcpConfig,
   listSessions,
   listSlashCommands,
@@ -293,6 +294,36 @@ describe("webui API helpers", () => {
       pinned_keys: ["websocket:chat-1"],
       title_overrides: { "websocket:chat-1": "Release" },
     });
+  });
+
+  it("fetches workspace project state", async () => {
+    const payload = {
+      schema_version: 1,
+      default_scope: {
+        project_path: "/tmp/workspace",
+        project_name: "workspace",
+        access_mode: "restricted" as const,
+        restrict_to_workspace: true,
+      },
+      last_scope: null,
+      recent_projects: [],
+      controls: {
+        can_change_project: true,
+        can_use_full_access: true,
+      },
+    };
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => payload,
+    } as Response);
+
+    await expect(fetchWorkspaces("tok")).resolves.toEqual(payload);
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/workspaces",
+      expect.objectContaining({
+        headers: { Authorization: "Bearer tok" },
+      }),
+    );
   });
 
   it("maps generated session titles from the sessions list", async () => {

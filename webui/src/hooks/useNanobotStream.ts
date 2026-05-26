@@ -19,6 +19,7 @@ import type {
   UIImage,
   UIFileEdit,
   UIMessage,
+  WorkspaceScopePayload,
 } from "@/lib/types";
 
 interface StreamBuffer {
@@ -315,6 +316,7 @@ export interface SendOptions {
   imageGeneration?: OutboundImageGeneration;
   cliApps?: OutboundCliAppMention[];
   mcpPresets?: OutboundMcpPresetMention[];
+  workspaceScope?: WorkspaceScopePayload | null;
 }
 
 export function useNanobotStream(

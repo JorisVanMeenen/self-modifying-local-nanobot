@@ -139,6 +139,43 @@ export interface ChatSummary {
   preview: string;
   /** Unix epoch seconds when this session currently has a turn in flight. */
   runStartedAt?: number | null;
+  workspaceScope?: WorkspaceScopePayload | null;
+}
+
+export type WorkspaceAccessMode = "restricted" | "full";
+
+export interface WorkspaceScopePayload {
+  project_path: string;
+  project_name?: string;
+  access_mode: WorkspaceAccessMode;
+  restrict_to_workspace?: boolean;
+  sandbox_status?: {
+    restrict_to_workspace: boolean;
+    workspace_root: string;
+    level: string;
+    enforced: boolean;
+    provider: string;
+    provider_label: string;
+    summary: string;
+  };
+}
+
+export interface WorkspacesPayload {
+  schema_version: number;
+  default_scope: WorkspaceScopePayload;
+  last_scope?: {
+    project_path: string;
+    project_name?: string;
+    access_mode: WorkspaceAccessMode;
+  } | null;
+  recent_projects: Array<{
+    project_path: string;
+    project_name?: string;
+  }>;
+  controls: {
+    can_change_project: boolean;
+    can_use_full_access: boolean;
+  };
 }
 
 export type SidebarDensity = "comfortable" | "compact";
@@ -575,8 +612,13 @@ export type InboundEvent =
       chat_id: string;
       goal_state: GoalStateWsPayload;
     }
-  | { event: "session_updated"; chat_id: string; scope?: "metadata" | "thread" | string }
-  | { event: "error"; chat_id?: string; detail?: string };
+  | {
+      event: "session_updated";
+      chat_id: string;
+      scope?: "metadata" | "thread" | string;
+      workspace_scope?: WorkspaceScopePayload;
+    }
+  | { event: "error"; chat_id?: string; detail?: string; reason?: string };
 
 /** Base64-encoded image attached to an outbound ``message`` envelope.
  *
@@ -622,11 +664,13 @@ export interface WebuiThreadPersistedPayload {
   sessionKey?: string;
   savedAt?: string;
   messages: UIMessage[];
+  workspace_scope?: WorkspaceScopePayload;
 }
 
 export type Outbound =
-  | { type: "new_chat" }
+  | { type: "new_chat"; workspace_scope?: WorkspaceScopePayload }
   | { type: "attach"; chat_id: string }
+  | { type: "set_workspace_scope"; chat_id: string; workspace_scope: WorkspaceScopePayload }
   | {
       type: "message";
       chat_id: string;
@@ -635,6 +679,7 @@ export type Outbound =
       image_generation?: OutboundImageGeneration;
       cli_apps?: OutboundCliAppMention[];
       mcp_presets?: OutboundMcpPresetMention[];
+      workspace_scope?: WorkspaceScopePayload;
       /** Marks messages sent by the embedded WebUI, without changing the
        * generic websocket protocol for other clients. */
       webui?: true;

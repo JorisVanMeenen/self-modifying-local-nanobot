@@ -64,7 +64,10 @@
       "label": "语言",
       "ariaLabel": "切换语言"
     },
-    "apps": "应用"
+    "apps": "应用",
+    "project": {
+      "change": "更改项目工作区"
+    }
   },
   "settings": {
     "backToChat": "返回对话",
@@ -635,7 +638,15 @@
         "too_large": "图片太大，请换一张小一点的",
         "io": "无法读取该文件"
       },
-      "goalStateCloseAria": "关闭目标"
+      "goalStateCloseAria": "关闭目标",
+      "workspace": {
+        "accessAria": "工作区访问权限",
+        "accessLabel": "工作区权限",
+        "restricted": "受限",
+        "restrictedDescription": "只允许读取和编辑所选项目目录。",
+        "full": "完全访问权限",
+        "fullDescription": "允许访问项目目录之外的路径。"
+      }
     },
     "scrollToBottom": "滚动到底部",
     "loadEarlier": "加载更早消息"
@@ -693,6 +704,24 @@
     "messageTooBig": {
       "title": "消息过大",
       "body": "服务端因超过大小限制拒收了上一条消息。可移除部分图片或使用更小的图片后重试。"
+    },
+    "workspaceScopeRejected": {
+      "title": "工作区未更改",
+      "body": "网关拒绝了请求的项目或访问权限，Nanobot 已继续使用之前的工作区。"
+    }
+  },
+  "workspace": {
+    "dialog": {
+      "title": "选择项目",
+      "description": "为这个 WebUI 对话绑定项目目录，并选择 agent 的本地访问权限。",
+      "projects": "项目",
+      "defaultProject": "默认工作区",
+      "access": "访问权限",
+      "manual": "手动路径",
+      "manualPlaceholder": "/Users/name/project",
+      "usePath": "使用路径",
+      "absolutePathRequired": "请输入这台机器上的绝对文件夹路径。",
+      "done": "完成"
     }
   }
 }

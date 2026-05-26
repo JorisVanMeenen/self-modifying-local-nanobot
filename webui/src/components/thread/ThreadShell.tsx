@@ -31,7 +31,16 @@ import {
   isMcpPresetsPayload,
 } from "@/lib/mcp-preset-events";
 import { inferProviderFromModelName, providerDisplayLabel } from "@/lib/provider-brand";
-import type { ChatSummary, CliAppInfo, McpPresetInfo, SettingsPayload, SlashCommand, UIMessage } from "@/lib/types";
+import type {
+  ChatSummary,
+  CliAppInfo,
+  McpPresetInfo,
+  SettingsPayload,
+  SlashCommand,
+  UIMessage,
+  WorkspaceScopePayload,
+  WorkspacesPayload,
+} from "@/lib/types";
 import { normalizeLegacyLongTaskMessages } from "@/lib/thread-display-compat";
 import { scrubSubagentUiMessages } from "@/lib/subagent-channel-display";
 import { useClient } from "@/providers/ClientProvider";
@@ -60,11 +69,15 @@ interface ThreadShellProps {
   onToggleSidebar: () => void;
   onGoHome?: () => void;
   onNewChat?: () => void;
-  onCreateChat?: () => Promise<string | null>;
+  onCreateChat?: (workspaceScope?: WorkspaceScopePayload | null) => Promise<string | null>;
   onTurnEnd?: () => void;
   theme?: "light" | "dark";
   onToggleTheme?: () => void;
   hideSidebarToggleOnDesktop?: boolean;
+  workspaceScope?: WorkspaceScopePayload | null;
+  workspaceControls?: WorkspacesPayload["controls"] | null;
+  workspaceScopeDisabled?: boolean;
+  onWorkspaceScopeChange?: (scope: WorkspaceScopePayload) => void;
 }
 
 function toModelBadgeLabel(modelName: string | null): string | null {
@@ -143,6 +156,10 @@ export function ThreadShell({
   theme = "light",
   onToggleTheme = () => {},
   hideSidebarToggleOnDesktop = false,
+  workspaceScope = null,
+  workspaceControls = null,
+  workspaceScopeDisabled = false,
+  onWorkspaceScopeChange,
 }: ThreadShellProps) {
   const { t } = useTranslation();
   const chatId = session?.chatId ?? null;
@@ -201,6 +218,16 @@ export function ThreadShell({
   const modelBadge = useMemo(
     () => toModelBadgeInfo(modelName, settings),
     [modelName, settings],
+  );
+  const withWorkspaceScope = useCallback(
+    (options?: SendOptions): SendOptions | undefined => {
+      if (!workspaceScope) return options;
+      return {
+        ...(options ?? {}),
+        workspaceScope,
+      };
+    },
+    [workspaceScope],
   );
 
   const refreshModelSettings = useCallback(async () => {
@@ -433,22 +460,22 @@ export function ThreadShell({
     async (content: string, images?: SendImage[], options?: SendOptions) => {
       if (booting) return;
       setBooting(true);
-      pendingFirstRef.current = { content, images, options };
-      const newId = await onCreateChat?.();
+      pendingFirstRef.current = { content, images, options: withWorkspaceScope(options) };
+      const newId = await onCreateChat?.(workspaceScope);
       if (!newId) {
         pendingFirstRef.current = null;
         setBooting(false);
       }
     },
-    [booting, onCreateChat],
+    [booting, onCreateChat, withWorkspaceScope, workspaceScope],
   );
 
   const handleThreadSend = useCallback(
     (content: string, images?: SendImage[], options?: SendOptions) => {
       setScrollToBottomSignal((value) => value + 1);
-      send(content, images, options);
+      send(content, images, withWorkspaceScope(options));
     },
-    [send],
+    [send, withWorkspaceScope],
   );
 
   const handleQuickAction = useCallback(
@@ -523,6 +550,10 @@ export function ThreadShell({
           onStop={stop}
           runStartedAt={runStartedAt}
           goalState={goalState}
+          workspaceScope={workspaceScope}
+          workspaceControls={workspaceControls}
+          workspaceScopeDisabled={workspaceScopeDisabled}
+          onWorkspaceScopeChange={onWorkspaceScopeChange}
         />
       ) : (
         <ThreadComposer
@@ -545,6 +576,10 @@ export function ThreadShell({
           onImageModeChange={setHeroImageMode}
           runStartedAt={runStartedAt}
           goalState={goalState}
+          workspaceScope={workspaceScope}
+          workspaceControls={workspaceControls}
+          workspaceScopeDisabled={workspaceScopeDisabled}
+          onWorkspaceScopeChange={onWorkspaceScopeChange}
         />
       )}
       {showHeroComposer ? quickActions : null}

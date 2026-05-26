@@ -30,6 +30,8 @@ from nanobot.channels.websocket import (
 )
 from nanobot.config.loader import load_config, save_config
 from nanobot.config.schema import Config, ModelPresetConfig
+from nanobot.session import webui_turns as wth
+from nanobot.session.manager import SessionManager
 from nanobot.webui.settings_api import settings_payload, update_provider_settings
 
 # -- Shared helpers (aligned with test_websocket_integration.py) ---------------
@@ -202,6 +204,243 @@ async def test_plain_websocket_message_does_not_mark_webui(bus: MagicMock) -> No
 
     msg = bus.publish_inbound.await_args.args[0]
     assert "webui" not in msg.metadata
+
+
+@pytest.mark.asyncio
+async def test_webui_message_scope_inherits_persisted_session_scope(
+    bus: MagicMock,
+    tmp_path,
+) -> None:
+    default_workspace = tmp_path / "default"
+    project = tmp_path / "project"
+    default_workspace.mkdir()
+    project.mkdir()
+    sessions = SessionManager(tmp_path / "sessions")
+    channel = WebSocketChannel(
+        {"enabled": True, "allowFrom": ["*"], "host": "127.0.0.1"},
+        bus,
+        session_manager=sessions,
+        workspace_path=default_workspace,
+        restrict_to_workspace=True,
+    )
+    conn = AsyncMock()
+    conn.remote_address = ("127.0.0.1", 50123)
+
+    await channel._dispatch_envelope(
+        conn,
+        "webui-client",
+        {
+            "type": "set_workspace_scope",
+            "chat_id": "chat-scope",
+            "workspace_scope": {
+                "project_path": str(project),
+                "access_mode": "full",
+            },
+        },
+    )
+    await channel._dispatch_envelope(
+        conn,
+        "webui-client",
+        {"type": "message", "chat_id": "chat-scope", "content": "hello", "webui": True},
+    )
+
+    msg = bus.publish_inbound.await_args.args[0]
+    assert msg.metadata["workspace_scope"] == {
+        "project_path": str(project.resolve()),
+        "access_mode": "full",
+    }
+
+
+@pytest.mark.asyncio
+async def test_webui_scope_rejects_missing_project_path(bus: MagicMock, tmp_path) -> None:
+    default_workspace = tmp_path / "default"
+    default_workspace.mkdir()
+    channel = WebSocketChannel(
+        {"enabled": True, "allowFrom": ["*"], "host": "127.0.0.1"},
+        bus,
+        session_manager=SessionManager(tmp_path / "sessions"),
+        workspace_path=default_workspace,
+    )
+    conn = AsyncMock()
+    conn.remote_address = ("127.0.0.1", 50123)
+
+    await channel._dispatch_envelope(
+        conn,
+        "webui-client",
+        {
+            "type": "set_workspace_scope",
+            "chat_id": "chat-scope",
+            "workspace_scope": {
+                "project_path": str(tmp_path / "missing"),
+                "access_mode": "restricted",
+            },
+        },
+    )
+
+    conn.send.assert_awaited()
+    payload = json.loads(conn.send.await_args.args[0])
+    assert payload["event"] == "error"
+    assert payload["detail"] == "workspace_scope_rejected"
+    bus.publish_inbound.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_webui_scope_rejects_running_scope_change(bus: MagicMock, tmp_path) -> None:
+    default_workspace = tmp_path / "default"
+    project = tmp_path / "project"
+    other = tmp_path / "other"
+    default_workspace.mkdir()
+    project.mkdir()
+    other.mkdir()
+    sessions = SessionManager(tmp_path / "sessions")
+    channel = WebSocketChannel(
+        {"enabled": True, "allowFrom": ["*"], "host": "127.0.0.1"},
+        bus,
+        session_manager=sessions,
+        workspace_path=default_workspace,
+        restrict_to_workspace=True,
+    )
+    conn = AsyncMock()
+    conn.remote_address = ("127.0.0.1", 50123)
+
+    await channel._dispatch_envelope(
+        conn,
+        "webui-client",
+        {
+            "type": "set_workspace_scope",
+            "chat_id": "chat-running",
+            "workspace_scope": {
+                "project_path": str(project),
+                "access_mode": "restricted",
+            },
+        },
+    )
+    wth._WEBSOCKET_TURN_WALL_STARTED_AT["chat-running"] = 123.0
+    try:
+        await channel._dispatch_envelope(
+            conn,
+            "webui-client",
+            {
+                "type": "message",
+                "chat_id": "chat-running",
+                "content": "hello",
+                "webui": True,
+                "workspace_scope": {
+                    "project_path": str(other),
+                    "access_mode": "full",
+                },
+            },
+        )
+    finally:
+        wth._WEBSOCKET_TURN_WALL_STARTED_AT.clear()
+
+    payload = json.loads(conn.send.await_args.args[0])
+    assert payload["event"] == "error"
+    assert payload["detail"] == "workspace_scope_rejected"
+    assert payload["reason"] == "chat_running"
+    assert payload["chat_id"] == "chat-running"
+    bus.publish_inbound.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_webui_set_workspace_scope_rejects_running_chat(bus: MagicMock, tmp_path) -> None:
+    default_workspace = tmp_path / "default"
+    project = tmp_path / "project"
+    other = tmp_path / "other"
+    default_workspace.mkdir()
+    project.mkdir()
+    other.mkdir()
+    sessions = SessionManager(tmp_path / "sessions")
+    channel = WebSocketChannel(
+        {"enabled": True, "allowFrom": ["*"], "host": "127.0.0.1"},
+        bus,
+        session_manager=sessions,
+        workspace_path=default_workspace,
+        restrict_to_workspace=True,
+    )
+    conn = AsyncMock()
+    conn.remote_address = ("127.0.0.1", 50123)
+
+    await channel._dispatch_envelope(
+        conn,
+        "webui-client",
+        {
+            "type": "set_workspace_scope",
+            "chat_id": "chat-running",
+            "workspace_scope": {
+                "project_path": str(project),
+                "access_mode": "restricted",
+            },
+        },
+    )
+    conn.send.reset_mock()
+
+    wth._WEBSOCKET_TURN_WALL_STARTED_AT["chat-running"] = 123.0
+    try:
+        await channel._dispatch_envelope(
+            conn,
+            "webui-client",
+            {
+                "type": "set_workspace_scope",
+                "chat_id": "chat-running",
+                "workspace_scope": {
+                    "project_path": str(other),
+                    "access_mode": "full",
+                },
+            },
+        )
+    finally:
+        wth._WEBSOCKET_TURN_WALL_STARTED_AT.clear()
+
+    payload = json.loads(conn.send.await_args.args[0])
+    assert payload["event"] == "error"
+    assert payload["detail"] == "workspace_scope_rejected"
+    assert payload["reason"] == "chat_running"
+    assert payload["chat_id"] == "chat-running"
+
+    saved = sessions.read_session_file("websocket:chat-running")
+    assert saved["metadata"]["workspace_scope"] == {
+        "project_path": str(project.resolve()),
+        "access_mode": "restricted",
+    }
+
+
+@pytest.mark.asyncio
+async def test_webui_scope_rejects_non_loopback_custom_scope(bus: MagicMock, tmp_path) -> None:
+    default_workspace = tmp_path / "default"
+    project = tmp_path / "project"
+    default_workspace.mkdir()
+    project.mkdir()
+    sessions = SessionManager(tmp_path / "sessions")
+    channel = WebSocketChannel(
+        {"enabled": True, "allowFrom": ["*"], "host": "127.0.0.1"},
+        bus,
+        session_manager=sessions,
+        workspace_path=default_workspace,
+        restrict_to_workspace=True,
+    )
+    conn = AsyncMock()
+    conn.remote_address = ("203.0.113.8", 50123)
+
+    await channel._dispatch_envelope(
+        conn,
+        "webui-client",
+        {
+            "type": "set_workspace_scope",
+            "chat_id": "chat-remote",
+            "workspace_scope": {
+                "project_path": str(project),
+                "access_mode": "full",
+            },
+        },
+    )
+
+    payload = json.loads(conn.send.await_args.args[0])
+    assert payload["event"] == "error"
+    assert payload["detail"] == "workspace_scope_rejected"
+    assert payload["reason"] == "workspace controls are localhost-only"
+    assert payload["chat_id"] == "chat-remote"
+    assert sessions.read_session_file("websocket:chat-remote") is None
 
 
 @pytest.mark.asyncio

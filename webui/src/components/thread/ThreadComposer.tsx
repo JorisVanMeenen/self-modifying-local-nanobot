@@ -19,6 +19,7 @@ import {
 } from "@/components/CliAppMentionText";
 import {
   Activity,
+  AlertTriangle,
   ArrowUp,
   BookOpen,
   Brain,
@@ -44,6 +45,15 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   useAttachedImages,
   type AttachedImage,
   type AttachmentError,
@@ -58,6 +68,9 @@ import type {
   OutboundCliAppMention,
   OutboundMcpPresetMention,
   SlashCommand,
+  WorkspaceAccessMode,
+  WorkspaceScopePayload,
+  WorkspacesPayload,
 } from "@/lib/types";
 import {
   inferProviderFromModelName,
@@ -95,6 +108,10 @@ interface ThreadComposerProps {
   runStartedAt?: number | null;
   /** Sustained objective for this chat (WebSocket ``goal_state``). */
   goalState?: GoalStateWsPayload;
+  workspaceScope?: WorkspaceScopePayload | null;
+  workspaceControls?: WorkspacesPayload["controls"] | null;
+  workspaceScopeDisabled?: boolean;
+  onWorkspaceScopeChange?: (scope: WorkspaceScopePayload) => void;
 }
 
 const COMMAND_ICONS: Record<string, LucideIcon> = {
@@ -122,6 +139,17 @@ const SLASH_RECENTS_STORAGE_KEY = "nanobot.webui.slashCommandRecents";
 const SLASH_RECENTS_LIMIT = 5;
 
 type SlashPalettePlacement = "above" | "below";
+
+function scopeWithAccessMode(
+  scope: WorkspaceScopePayload,
+  accessMode: WorkspaceAccessMode,
+): WorkspaceScopePayload {
+  return {
+    ...scope,
+    access_mode: accessMode,
+    restrict_to_workspace: accessMode === "restricted",
+  };
+}
 
 interface SlashPaletteLayout {
   placement: SlashPalettePlacement;
@@ -476,6 +504,10 @@ export function ThreadComposer({
   onStop,
   runStartedAt = null,
   goalState,
+  workspaceScope = null,
+  workspaceControls = null,
+  workspaceScopeDisabled = false,
+  onWorkspaceScopeChange,
 }: ThreadComposerProps) {
   const { t } = useTranslation();
   const [value, setValue] = useState("");
@@ -1274,6 +1306,15 @@ export function ThreadComposer({
                 isHero={isHero}
               />
             ) : null}
+            {workspaceScope ? (
+              <WorkspaceAccessMenu
+                scope={workspaceScope}
+                disabled={disabled || workspaceScopeDisabled}
+                canUseFullAccess={workspaceControls?.can_use_full_access !== false}
+                isHero={isHero}
+                onChange={onWorkspaceScopeChange}
+              />
+            ) : null}
             {!isHero ? (
               <span className="hidden select-none text-[10.5px] text-muted-foreground/60 sm:inline">
                 {t("thread.composer.sendHint")}
@@ -1376,6 +1417,92 @@ function ComposerModelBadge({
       </span>
       <span className="truncate">{label}</span>
     </span>
+  );
+}
+
+function WorkspaceAccessMenu({
+  scope,
+  disabled,
+  canUseFullAccess,
+  isHero,
+  onChange,
+}: {
+  scope: WorkspaceScopePayload;
+  disabled?: boolean;
+  canUseFullAccess: boolean;
+  isHero: boolean;
+  onChange?: (scope: WorkspaceScopePayload) => void;
+}) {
+  const { t } = useTranslation();
+  const mode = scope.access_mode;
+  const isFull = mode === "full";
+
+  const setMode = (value: string) => {
+    if (value !== "restricted" && value !== "full") return;
+    if (value === "full" && !canUseFullAccess) return;
+    if (value === mode) return;
+    onChange?.(scopeWithAccessMode(scope, value));
+  };
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild disabled={disabled || !onChange}>
+        <Button
+          type="button"
+          variant="ghost"
+          aria-label={t("thread.composer.workspace.accessAria")}
+          className={cn(
+            "h-9 max-w-[12.5rem] rounded-full border px-2.5 text-[12px] font-medium shadow-[0_2px_8px_rgba(15,23,42,0.04)]",
+            isFull
+              ? "border-orange-300/60 bg-orange-50 text-orange-700 hover:bg-orange-50 dark:border-orange-400/25 dark:bg-orange-950/20 dark:text-orange-300"
+              : "border-border/55 bg-card text-muted-foreground hover:bg-card hover:text-foreground",
+          )}
+          title={t(
+            isFull
+              ? "thread.composer.workspace.fullDescription"
+              : "thread.composer.workspace.restrictedDescription",
+          )}
+        >
+          {isFull ? (
+            <AlertTriangle className={cn("mr-1.5 shrink-0", isHero ? "h-4 w-4" : "h-3.5 w-3.5")} />
+          ) : (
+            <Shield className={cn("mr-1.5 shrink-0", isHero ? "h-4 w-4" : "h-3.5 w-3.5")} />
+          )}
+          <span className="truncate">
+            {t(isFull ? "thread.composer.workspace.full" : "thread.composer.workspace.restricted")}
+          </span>
+          <ChevronDown className={cn("ml-1.5 shrink-0", isHero ? "h-3.5 w-3.5" : "h-3 w-3")} />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-64">
+        <DropdownMenuLabel className="text-xs text-muted-foreground">
+          {t("thread.composer.workspace.accessLabel")}
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuRadioGroup value={mode} onValueChange={setMode}>
+          <DropdownMenuRadioItem value="restricted">
+            <div className="flex min-w-0 flex-col">
+              <span className="font-medium">
+                {t("thread.composer.workspace.restricted")}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {t("thread.composer.workspace.restrictedDescription")}
+              </span>
+            </div>
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="full" disabled={!canUseFullAccess}>
+            <div className="flex min-w-0 flex-col">
+              <span className="font-medium text-orange-700 dark:text-orange-300">
+                {t("thread.composer.workspace.full")}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {t("thread.composer.workspace.fullDescription")}
+              </span>
+            </div>
+          </DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

@@ -4,7 +4,6 @@ from pathlib import Path
 
 from nanobot.config.paths import get_media_dir
 from nanobot.security.workspace_policy import (
-    WORKSPACE_BOUNDARY_NOTE,
     is_path_within,
     resolve_allowed_path,
 )

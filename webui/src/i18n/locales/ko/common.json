@@ -64,7 +64,10 @@
       "label": "언어",
       "ariaLabel": "언어 변경"
     },
-    "apps": "앱"
+    "apps": "앱",
+    "project": {
+      "change": "Change project workspace"
+    }
   },
   "settings": {
     "backToChat": "채팅으로 돌아가기",
@@ -635,6 +638,14 @@
         "mcpBadge": "MCP",
         "cliDescription": "@{{name}}을 로컬 CLI 앱으로 사용",
         "mcpDescription": "@{{name}}을 MCP 서버로 사용"
+      },
+      "workspace": {
+        "accessAria": "Workspace access mode",
+        "accessLabel": "Workspace access",
+        "restricted": "Restricted",
+        "restrictedDescription": "Read and edit inside the selected project only.",
+        "full": "Full Access",
+        "fullDescription": "Allow access outside the project folder."
       }
     },
     "scrollToBottom": "맨 아래로 스크롤",
@@ -693,6 +704,24 @@
     "messageTooBig": {
       "title": "메시지가 너무 큽니다",
       "body": "마지막 메시지가 서버의 크기 제한을 초과하여 거부되었습니다. 이미지를 줄이거나 더 작은 파일로 바꿔서 다시 보내 주세요."
+    },
+    "workspaceScopeRejected": {
+      "title": "Workspace was not changed",
+      "body": "Nanobot kept the previous workspace because the requested project or access mode was rejected by the gateway."
+    }
+  },
+  "workspace": {
+    "dialog": {
+      "title": "Choose Project",
+      "description": "Bind this WebUI chat to a project folder and choose how much local access the agent has.",
+      "projects": "Projects",
+      "defaultProject": "Default workspace",
+      "access": "Access",
+      "manual": "Manual path",
+      "manualPlaceholder": "/Users/name/project",
+      "usePath": "Use Path",
+      "absolutePathRequired": "Enter an absolute folder path on this machine.",
+      "done": "Done"
     }
   }
 }

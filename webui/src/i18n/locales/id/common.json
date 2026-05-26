@@ -64,7 +64,10 @@
       "label": "Bahasa",
       "ariaLabel": "Ganti bahasa"
     },
-    "apps": "Aplikasi"
+    "apps": "Aplikasi",
+    "project": {
+      "change": "Change project workspace"
+    }
   },
   "settings": {
     "backToChat": "Kembali ke obrolan",
@@ -635,6 +638,14 @@
         "mcpBadge": "MCP",
         "cliDescription": "Gunakan @{{name}} sebagai aplikasi CLI lokal",
         "mcpDescription": "Gunakan @{{name}} sebagai server MCP"
+      },
+      "workspace": {
+        "accessAria": "Workspace access mode",
+        "accessLabel": "Workspace access",
+        "restricted": "Restricted",
+        "restrictedDescription": "Read and edit inside the selected project only.",
+        "full": "Full Access",
+        "fullDescription": "Allow access outside the project folder."
       }
     },
     "scrollToBottom": "Gulir ke bawah",
@@ -693,6 +704,24 @@
     "messageTooBig": {
       "title": "Pesan terlalu besar",
       "body": "Server menolak pesan terakhir karena melebihi batas ukuran. Hapus beberapa gambar atau gunakan berkas yang lebih kecil, lalu coba lagi."
+    },
+    "workspaceScopeRejected": {
+      "title": "Workspace was not changed",
+      "body": "Nanobot kept the previous workspace because the requested project or access mode was rejected by the gateway."
+    }
+  },
+  "workspace": {
+    "dialog": {
+      "title": "Choose Project",
+      "description": "Bind this WebUI chat to a project folder and choose how much local access the agent has.",
+      "projects": "Projects",
+      "defaultProject": "Default workspace",
+      "access": "Access",
+      "manual": "Manual path",
+      "manualPlaceholder": "/Users/name/project",
+      "usePath": "Use Path",
+      "absolutePathRequired": "Enter an absolute folder path on this machine.",
+      "done": "Done"
     }
   }
 }
