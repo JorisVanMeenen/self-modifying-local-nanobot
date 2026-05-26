@@ -206,6 +206,68 @@ class TestDreamAgentLoopIntegration:
         commits = store.git.log()
         assert len([c for c in commits if c.message.startswith("dream:")]) == 0
 
+    async def test_notifies_incomplete_on_max_iterations(self, loop, mock_runner, store):
+        """When Dream hits max_iterations, user should get an incomplete notification."""
+        store.append_history("event one")
+        mock_runner.run = AsyncMock(
+            return_value=_make_run_result(stop_reason="max_iterations")
+        )
+        msg = InboundMessage(
+            channel="system",
+            sender_id="dream",
+            chat_id="dream",
+            content="",
+            metadata={"trigger_channel": "cli", "trigger_chat_id": "user1"},
+        )
+        loop.bus.publish_outbound = AsyncMock()
+        await loop._process_system_message(msg)
+        loop.bus.publish_outbound.assert_awaited_once()
+        outbound = loop.bus.publish_outbound.await_args[0][0]
+        assert "incomplete" in outbound.content
+        assert store.get_last_dream_cursor() == 0
+
+    async def test_notifies_incomplete_on_exception(self, loop, mock_runner, store):
+        """When Dream runner raises, user should get an incomplete notification."""
+        store.append_history("event one")
+        mock_runner.run = AsyncMock(side_effect=RuntimeError("LLM error"))
+        msg = InboundMessage(
+            channel="system",
+            sender_id="dream",
+            chat_id="dream",
+            content="",
+            metadata={"trigger_channel": "cli", "trigger_chat_id": "user1"},
+        )
+        loop.bus.publish_outbound = AsyncMock()
+        await loop._process_system_message(msg)
+        loop.bus.publish_outbound.assert_awaited_once()
+        outbound = loop.bus.publish_outbound.await_args[0][0]
+        assert "incomplete" in outbound.content
+        assert store.get_last_dream_cursor() == 0
+
+    async def test_notifies_completed_on_success(self, loop, mock_runner, store):
+        """When Dream succeeds, user should get a completed notification."""
+        store.append_history("event one")
+        mock_runner.run = AsyncMock(
+            return_value=_make_run_result(
+                tool_events=[
+                    {"name": "edit_file", "status": "ok", "detail": "memory/MEMORY.md"}
+                ],
+            )
+        )
+        msg = InboundMessage(
+            channel="system",
+            sender_id="dream",
+            chat_id="dream",
+            content="",
+            metadata={"trigger_channel": "cli", "trigger_chat_id": "user1"},
+        )
+        loop.bus.publish_outbound = AsyncMock()
+        await loop._process_system_message(msg)
+        loop.bus.publish_outbound.assert_awaited_once()
+        outbound = loop.bus.publish_outbound.await_args[0][0]
+        assert "completed" in outbound.content
+        assert "1 change" in outbound.content
+
 
 class TestDreamPrompt:
     async def test_prompt_contains_mece_rules(self, loop, mock_runner, store):
@@ -234,7 +296,6 @@ class TestDreamPrompt:
         system_prompt = spec.initial_messages[0]["content"]
         expected = str(BUILTIN_SKILLS_DIR / "skill-creator" / "SKILL.md")
         assert expected in system_prompt
-
 
 
 class TestDreamPromptCaps:
@@ -344,61 +405,3 @@ class TestDreamFileReferences:
         assert "## Memory Files (read before editing)" in user_msg
 
 
-class TestDreamSessionPersistence:
-    async def test_writes_session_on_success(self, loop, mock_runner, store):
-        store.append_history("event one")
-        store.append_history("event two")
-        mock_runner.run = AsyncMock(
-            return_value=_make_run_result(
-                tool_events=[
-                    {"name": "edit_file", "status": "ok", "detail": "memory/MEMORY.md"}
-                ],
-            )
-        )
-        msg = InboundMessage(
-            channel="system", sender_id="dream", chat_id="dream", content=""
-        )
-        await loop._process_system_message(msg)
-        session_path = store.memory_dir / ".dream_session.json"
-        assert session_path.exists()
-        data = json.loads(session_path.read_text(encoding="utf-8"))
-        assert data["batch"]["from_cursor"] == 0
-        assert data["batch"]["to_cursor"] == 2
-        assert data["batch"]["count"] == 2
-        assert data["stop_reason"] == "completed"
-        assert data["changelog"] == ["edit_file: memory/MEMORY.md"]
-        assert "timestamp" in data
-        assert "elapsed_seconds" in data
-        assert "messages" in data
-
-    async def test_no_session_record_on_failure(self, loop, mock_runner, store):
-        """Failed batch should not write a session record (cursor stays put for retry)."""
-        store.append_history("event one")
-        mock_runner.run = AsyncMock(side_effect=RuntimeError("LLM error"))
-        msg = InboundMessage(
-            channel="system", sender_id="dream", chat_id="dream", content=""
-        )
-        await loop._process_system_message(msg)
-        session_path = store.memory_dir / ".dream_session.json"
-        assert not session_path.exists()
-        assert store.get_last_dream_cursor() == 0
-
-    async def test_session_contains_full_messages(self, loop, mock_runner, store):
-        store.append_history("event one")
-        messages = [
-            {"role": "system", "content": "you are a memory bot"},
-            {"role": "user", "content": "history here"},
-            {"role": "assistant", "content": "I will edit MEMORY.md"},
-        ]
-        result = _make_run_result()
-        result.messages = messages
-        mock_runner.run = AsyncMock(return_value=result)
-        msg = InboundMessage(
-            channel="system", sender_id="dream", chat_id="dream", content=""
-        )
-        await loop._process_system_message(msg)
-        session_path = store.memory_dir / ".dream_session.json"
-        data = json.loads(session_path.read_text(encoding="utf-8"))
-        assert data["messages"] == messages
-        assert data["prompt_chars"] > 0
-        assert data["commit_sha"] is None

@@ -704,6 +704,22 @@ def gateway(
     _run_gateway(cfg, port=port)
 
 
+def _apply_dream_config(agent: Any, config: Config, cron: Any) -> None:
+    """Apply dream config to the agent loop and register the cron job."""
+    dream_cfg = config.agents.defaults.dream
+    agent.dream.max_batch_size = dream_cfg.max_batch_size
+    agent.dream.max_iterations = dream_cfg.max_iterations
+    agent.dream.reasoning_effort = dream_cfg.reasoning_effort
+    from nanobot.cron.types import CronJob, CronPayload
+
+    cron.register_system_job(CronJob(
+        id="dream",
+        name="dream",
+        schedule=dream_cfg.build_schedule(config.agents.defaults.timezone),
+        payload=CronPayload(kind="system_event"),
+    ))
+
+
 def _run_gateway(
     config: Config,
     *,
@@ -1025,18 +1041,8 @@ def _run_gateway(
         console.print(f"[green]✓[/green] Health endpoint: http://{host}:{health_port}/health")
         async with server:
             await server.serve_forever()
-    # Register Dream system job (always-on, idempotent on restart)
+    _apply_dream_config(agent, config, cron)
     dream_cfg = config.agents.defaults.dream
-    agent.dream.max_batch_size = dream_cfg.max_batch_size
-    agent.dream.max_iterations = dream_cfg.max_iterations
-    agent.dream.annotate_line_ages = dream_cfg.annotate_line_ages
-    from nanobot.cron.types import CronJob, CronPayload
-    cron.register_system_job(CronJob(
-        id="dream",
-        name="dream",
-        schedule=dream_cfg.build_schedule(config.agents.defaults.timezone),
-        payload=CronPayload(kind="system_event"),
-    ))
     console.print(f"[green]✓[/green] Dream: {dream_cfg.describe_schedule()}")
 
     async def _open_browser_when_ready() -> None:
@@ -1145,6 +1151,7 @@ def agent(
     except ValueError as exc:
         console.print(f"[red]Error: {exc}[/red]")
         raise typer.Exit(1) from exc
+    _apply_dream_config(agent_loop, config, cron)
     restart_notice = consume_restart_notice_from_env()
     if restart_notice and should_show_cli_restart_notice(restart_notice, session_id):
         _print_agent_response(

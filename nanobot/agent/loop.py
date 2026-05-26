@@ -1082,8 +1082,15 @@ class AgentLoop:
                 if trigger_ch and trigger_ci:
                     session.metadata["_dream_trigger_channel"] = trigger_ch
                     session.metadata["_dream_trigger_chat_id"] = trigger_ci
-            await self._process_dream_batch(session, msg)
-            await self._dream_finalize_commit(session)
+            self._set_tool_context(
+                channel, chat_id,
+                msg.metadata.get("message_id"),
+                msg.metadata, session_key=session_key,
+            )
+            try:
+                had_work, completed = await self._process_dream_batch(session, msg)
+            finally:
+                await self._dream_finalize_commit(session, incomplete=(had_work and not completed))
             return None
         key = msg.session_key_override or f"{channel}:{chat_id}"
         session = self.sessions.get_or_create(key)
@@ -1161,7 +1168,7 @@ class AgentLoop:
             metadata=outbound_metadata,
         )
 
-    async def _process_dream_batch(self, session: Session, msg: InboundMessage) -> None:
+    async def _process_dream_batch(self, session: Session, msg: InboundMessage) -> tuple[bool, bool]:
         """Process the full Dream backlog in a single invocation.
 
         All unprocessed history entries are written to ``.dream_batch.jsonl`` so
@@ -1193,7 +1200,7 @@ class AgentLoop:
         last_cursor = self.dream.store.get_last_dream_cursor()
         entries = self.dream.store.read_unprocessed_history(since_cursor=last_cursor)
         if not entries:
-            return
+            return False, False
 
         logger.info(
             "Dream: processing {} entries (cursor {}→{})",
@@ -1215,7 +1222,7 @@ class AgentLoop:
             )
         except OSError as exc:
             logger.warning("Dream failed to write batch file: {}", exc)
-            return
+            return False, False
 
         # File references — agent reads contents on demand instead of embedding
         # the full text in the prompt, which avoids length errors as files grow.
@@ -1240,15 +1247,7 @@ class AgentLoop:
             f"({len(entries)} entries, cursor {last_cursor + 1}→{entries[-1]['cursor']})"
         )
 
-        existing_skills = self.dream._list_existing_skills()
-        skills_section = ""
-        if existing_skills:
-            skills_section = (
-                "\n\n## Existing Skills\n"
-                + "\n".join(f"- {s}" for s in existing_skills)
-            )
-
-        user_prompt = f"## Conversation History\nUse read_file to inspect .dream_batch.jsonl.\n\n{file_context}{skills_section}"
+        user_prompt = f"## Conversation History\nUse read_file to inspect .dream_batch.jsonl.\n\n{file_context}"
         logger.info("Dream prompt: {} chars, ~{} tokens", len(user_prompt), _estimate_tokens(user_prompt))
 
         messages: list[dict[str, Any]] = [
@@ -1301,32 +1300,18 @@ class AgentLoop:
                 "Dream incomplete ({}): cursor NOT advanced, stopping",
                 reason,
             )
-            return
+            return True, False
 
         self.dream.store.compact_history()
 
-        # Persist session record for debugging / visualization
-        record = {
-            "timestamp": datetime.now().isoformat(),
-            "batch": {
-                "from_cursor": last_cursor,
-                "to_cursor": entries[-1]["cursor"],
-                "count": len(entries),
-            },
-            "prompt_chars": len(user_prompt),
-            "elapsed_seconds": elapsed,
-            "stop_reason": result.stop_reason,
-            "usage": result.usage,
-            "tool_events": result.tool_events,
-            "changelog": changelog,
-            "commit_sha": None,
-            "messages": result.messages,
-        }
-        self.dream.store.write_dream_session(record)
-        session.metadata["_dream_last_record"] = record
+        # Persist Dream turn into session history so it behaves like a normal
+        # conversation (reviewable via sessions/system_dream.jsonl).
+        session.messages.clear()
+        self._save_turn(session, result.messages, skip=0)
+        return True, True
 
 
-    async def _dream_finalize_commit(self, session: Session) -> None:
+    async def _dream_finalize_commit(self, session: Session, incomplete: bool = False) -> None:
         """Collapse accumulated changelog into a single git commit, clear caches, and complete the goal."""
         # Clean up the temporary batch file used by _process_dream_batch
         batch_file = self.dream.store.workspace / ".dream_batch.jsonl"
@@ -1341,10 +1326,6 @@ class AgentLoop:
             sha = self.dream.store.git.auto_commit(commit_msg)
             if sha:
                 logger.info("Dream commit: {}", sha)
-        record = session.metadata.pop("_dream_last_record", None)
-        if record and sha:
-            record["commit_sha"] = sha
-            self.dream.store.write_dream_session(record)
         session.metadata.pop("_dream_system_prompt", None)
         session.metadata.pop("_dream_system_prompt_mtime", None)
         trigger_channel = session.metadata.pop("_dream_trigger_channel", None)
@@ -1352,9 +1333,14 @@ class AgentLoop:
         self.sessions.save(session)
         # Notify the user who triggered /dream
         if trigger_channel and trigger_chat_id:
-            content = f"Dream completed: {len(changelog)} change(s) committed."
-            if not changelog:
+            if incomplete:
+                content = f"Dream incomplete: {len(changelog)} change(s) made before stopping."
+                if not changelog:
+                    content = "Dream incomplete: stopped before finishing."
+            elif not changelog:
                 content = "Dream: nothing to process."
+            else:
+                content = f"Dream completed: {len(changelog)} change(s) committed."
             await self.bus.publish_outbound(OutboundMessage(
                 channel=trigger_channel,
                 chat_id=trigger_chat_id,

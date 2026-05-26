@@ -416,26 +416,6 @@ class MemoryStore:
     def set_last_dream_cursor(self, cursor: int) -> None:
         self._dream_cursor_file.write_text(str(cursor), encoding="utf-8")
 
-    def write_dream_session(self, data: dict[str, Any]) -> None:
-        """Atomic overwrite of the latest Dream run record."""
-        path = self.memory_dir / ".dream_session.json"
-        tmp_path = path.with_suffix(".tmp")
-        try:
-            with open(tmp_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-                f.flush()
-                os.fsync(f.fileno())
-            os.replace(tmp_path, path)
-            with suppress(PermissionError):
-                fd = os.open(str(path.parent), os.O_RDONLY)
-                try:
-                    os.fsync(fd)
-                finally:
-                    os.close(fd)
-        except BaseException:
-            tmp_path.unlink(missing_ok=True)
-            raise
-
     # -- message formatting utility ------------------------------------------
 
     @staticmethod
@@ -696,15 +676,14 @@ class Consolidator:
 
             reserve_tokens = 0
             if dedup_context:
-                if _TIKTOKEN_ENC is not None:
-                    reserve_tokens = len(_TIKTOKEN_ENC.encode(dedup_context)) + 100
-                else:
-                    reserve_tokens = len(dedup_context) // 4 + 100
+                reserve_tokens = _estimate_tokens(dedup_context) + 100
 
             if self._input_token_budget <= reserve_tokens:
                 logger.warning(
-                    "Consolidator: dedup_context ({} tokens) exceeds budget ({}), dropping it",
+                    "Consolidator: dedup_context ({} tokens) exceeds input budget ({}; "
+                    "context_window={} max_completion={} safety={}), dropping dedup context",
                     reserve_tokens, self._input_token_budget,
+                    self.context_window_tokens, self.max_completion_tokens, self._SAFETY_BUFFER,
                 )
                 dedup_context = ""
                 reserve_tokens = 0
@@ -945,12 +924,6 @@ class Consolidator:
 # ---------------------------------------------------------------------------
 
 
-# Single source of truth for the staleness threshold used in _annotate_with_ages
-# *and* in the system prompt template (passed as `stale_threshold_days`).
-# Keep code and prompt aligned — if you bump this, the LLM's instruction string
-# updates automatically.
-_STALE_THRESHOLD_DAYS = 14
-
 _SKIP_LINE_RE = re.compile(r"^\s*-\s*\[skip\]\s*.*$", re.MULTILINE | re.IGNORECASE)
 
 
@@ -986,7 +959,7 @@ class Dream:
         max_batch_size: int = 5,
         max_iterations: int = 10,
         max_tool_result_chars: int = 16_000,
-        annotate_line_ages: bool = True,
+        reasoning_effort: str | None = "none",
         sessions: Any | None = None,
         bus: Any | None = None,
     ):
@@ -1002,10 +975,7 @@ class Dream:
         self.max_batch_size = max_batch_size
         self.max_iterations = max_iterations
         self.max_tool_result_chars = max_tool_result_chars
-        # Kill switch for the git-blame-based per-line age annotation in the prompt.
-        # Default True keeps the #3212 behavior; set False to feed all memory
-        # files raw (e.g. if a specific LLM reacts poorly to the `← Nd` suffix).
-        self.annotate_line_ages = annotate_line_ages
+        self.reasoning_effort = reasoning_effort
         self._sessions = sessions
         self._bus = bus
         self._runner = AgentRunner(provider)
@@ -1053,77 +1023,6 @@ class Dream:
             tools.register(CompleteGoalTool(sessions=self._sessions, bus=self._bus))
         return tools
 
-    # -- skill listing --------------------------------------------------------
-
-    def _list_existing_skills(self) -> list[str]:
-        """List existing skills as 'name — description' for dedup context."""
-        import re as _re
-
-        from nanobot.agent.skills import BUILTIN_SKILLS_DIR
-
-        desc_re = _re.compile(r"^description:\s*(.+)$", _re.MULTILINE | _re.IGNORECASE)
-        entries: dict[str, str] = {}
-        for base in (self.store.workspace / "skills", BUILTIN_SKILLS_DIR):
-            if not base.exists():
-                continue
-            for d in base.iterdir():
-                if not d.is_dir():
-                    continue
-                skill_md = d / "SKILL.md"
-                if not skill_md.exists():
-                    continue
-                # Prefer workspace skills over builtin (same name)
-                if d.name in entries and base == BUILTIN_SKILLS_DIR:
-                    continue
-                content = skill_md.read_text(encoding="utf-8")[:500]
-                m = desc_re.search(content)
-                desc = m.group(1).strip() if m else "(no description)"
-                entries[d.name] = desc
-        return [f"{name} — {desc}" for name, desc in sorted(entries.items())]
-
     # -- main entry ----------------------------------------------------------
 
-    def _annotate_with_ages(self, content: str, file_path: str = "memory/MEMORY.md") -> str:
-        """Append per-line age suffixes to file content.
-
-        Each non-blank line whose age exceeds ``_STALE_THRESHOLD_DAYS`` gets a
-        suffix like ``← 30d`` indicating days since last modification.
-        Returns the original content unchanged if git is unavailable,
-        annotate fails, or the line count doesn't match the age count
-        (which can happen with an uncommitted working-tree edit — better to
-        skip annotation than to tag the wrong line).
-        """
-        try:
-            ages = self.store.git.line_ages(file_path)
-        except Exception:
-            logger.debug("line_ages failed for {}", file_path)
-            return content
-        if not ages:
-            return content
-
-        had_trailing = content.endswith("\n")
-        lines = content.splitlines()
-        # If HEAD-blob line count disagrees with the working-tree content we
-        # received, ages would be assigned to the wrong lines — skip entirely
-        # and feed the LLM un-annotated content rather than misleading data.
-        if len(lines) != len(ages):
-            logger.debug(
-                "line_ages length mismatch for {} (lines={}, ages={}); skipping annotation",
-                file_path, len(lines), len(ages),
-            )
-            return content
-
-        annotated: list[str] = []
-        for line, age in zip(lines, ages):
-            if not line.strip():
-                annotated.append(line)
-                continue
-            if age.age_days > _STALE_THRESHOLD_DAYS:
-                annotated.append(f"{line}  \u2190 {age.age_days}d")
-            else:
-                annotated.append(line)
-        result = "\n".join(annotated)
-        if had_trailing:
-            result += "\n"
-        return result
 

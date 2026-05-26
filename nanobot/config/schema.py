@@ -59,10 +59,7 @@ class DreamConfig(Base):
     # and will be removed in a future release.
     max_batch_size: int = Field(default=5, ge=1)  # Max history entries per run
     max_iterations: int = Field(default=15, ge=1)  # Max tool calls per Dream run
-    # Per-line git-blame age annotation in the Dream prompt (see #3212). Default
-    # on — set to False to feed all memory files raw if a specific LLM reacts
-    # poorly to the `← Nd` suffix or you want deterministic, git-independent prompts.
-    annotate_line_ages: bool = True
+    reasoning_effort: str | None = Field(default="none")  # Disable reasoning by default to avoid error=length
 
     def build_schedule(self, timezone: str) -> CronSchedule:
         """Build the runtime schedule, preferring the legacy cron override if present."""
