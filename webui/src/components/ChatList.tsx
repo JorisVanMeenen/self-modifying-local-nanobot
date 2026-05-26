@@ -47,6 +47,7 @@ interface ChatListProps {
   showTimestamps?: boolean;
   sort?: SidebarSortMode;
   showArchived?: boolean;
+  defaultWorkspacePath?: string | null;
   actionMenuPortalContainer?: HTMLElement | null;
   loading?: boolean;
   emptyLabel?: string;
@@ -79,6 +80,7 @@ export const ChatList = memo(function ChatList({
   showTimestamps = false,
   sort = "updated_desc",
   showArchived = false,
+  defaultWorkspacePath,
   actionMenuPortalContainer,
   loading,
   emptyLabel,
@@ -102,6 +104,7 @@ export const ChatList = memo(function ChatList({
       titleOverrides,
       showArchived,
       sort,
+      defaultWorkspacePath,
     }),
     [
       archivedKeys,
@@ -111,6 +114,7 @@ export const ChatList = memo(function ChatList({
       showArchived,
       sort,
       titleOverrides,
+      defaultWorkspacePath,
     ],
   );
   const limitedGroups = useMemo(
@@ -156,8 +160,14 @@ export const ChatList = memo(function ChatList({
   return (
     <div className="h-full min-h-0 min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain">
       <div className="min-w-0 space-y-3 px-2 py-1.5">
-        {limitedGroups.map((group) => (
+        {limitedGroups.map((group, index) => (
           <section key={group.id} aria-label={group.label}>
+            {group.kind === "project"
+              && limitedGroups[index - 1]?.kind !== "project" ? (
+                <div className="px-2 pb-1 text-[12px] font-medium text-muted-foreground/65">
+                  {labels.projects}
+                </div>
+              ) : null}
             {group.kind === "project" ? (
               <ProjectGroupHeader
                 label={group.label}
@@ -403,6 +413,7 @@ function groupSessions(
     titleOverrides: Record<string, string>;
     showArchived: boolean;
     sort: SidebarSortMode;
+    defaultWorkspacePath?: string | null;
   },
 ): SessionGroup[] {
   if (sessions.some((session) => session.workspaceScope?.project_path)) {
@@ -494,6 +505,7 @@ function groupSessions(
 function groupSessionsByProject(
   sessions: ChatSummary[],
   labels: {
+    all: string;
     projects: string;
     fallbackTitle: string;
   },
@@ -503,9 +515,11 @@ function groupSessionsByProject(
     titleOverrides: Record<string, string>;
     showArchived: boolean;
     sort: SidebarSortMode;
+    defaultWorkspacePath?: string | null;
   },
 ): SessionGroup[] {
   const archived = new Set(options.archivedKeys);
+  const conversations: ChatSummary[] = [];
   const buckets = new Map<string, {
     path?: string;
     label: string;
@@ -519,11 +533,15 @@ function groupSessionsByProject(
     }
     const scope = session.workspaceScope;
     const path = scope?.project_path || "";
+    if (!path || sameWorkspacePath(path, options.defaultWorkspacePath)) {
+      conversations.push(session);
+      continue;
+    }
     const label = scope?.project_name?.trim()
-      || (path ? projectName(path) : labels.projects);
-    const key = path || "__without_project__";
+      || projectName(path);
+    const key = normalizeWorkspacePath(path);
     const bucket = buckets.get(key) ?? {
-      path: path || undefined,
+      path,
       label,
       sessions: [],
       updatedAt: null,
@@ -537,7 +555,7 @@ function groupSessionsByProject(
   }
 
   const pinned = new Set(options.pinnedKeys);
-  const groups = Array.from(buckets.entries()).map(([key, bucket]) => ({
+  const groups: SessionGroup[] = Array.from(buckets.entries()).map(([key, bucket]) => ({
     id: `project:${key}`,
     label: bucket.label,
     kind: "project" as const,
@@ -560,6 +578,20 @@ function groupSessionsByProject(
       sensitivity: "base",
     });
   });
+
+  if (conversations.length) {
+    groups.push({
+      id: "workspace:chats",
+      label: labels.all,
+      sessions: sortProjectSessions(
+        conversations,
+        options.sort,
+        options.titleOverrides,
+        pinned,
+        archived,
+      ),
+    });
+  }
 
   return groups;
 }
@@ -654,6 +686,16 @@ function dateToTime(value: string | null | undefined): number {
 function projectName(path: string): string {
   const normalized = path.replace(/\\/g, "/").replace(/\/+$/, "");
   return normalized.split("/").filter(Boolean).pop() || path;
+}
+
+function normalizeWorkspacePath(path: string | null | undefined): string {
+  const normalized = (path ?? "").replace(/\\/g, "/").replace(/\/+$/, "");
+  return normalized || "/";
+}
+
+function sameWorkspacePath(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  return normalizeWorkspacePath(a) === normalizeWorkspacePath(b);
 }
 
 function titleForSort(

@@ -64,6 +64,7 @@ interface SidebarProps {
   showArchived?: boolean;
   archivedCount?: number;
   workspaceScope?: WorkspaceScopePayload | null;
+  defaultWorkspacePath?: string | null;
   workspaceScopeDisabled?: boolean;
   onOpenWorkspacePicker?: () => void;
 }
@@ -74,6 +75,10 @@ export function Sidebar(props: SidebarProps) {
     useState<HTMLElement | null>(null);
   const collapsed = Boolean(props.collapsed);
   const toggleLabel = t("thread.header.toggleSidebar");
+  const showProjectButton = Boolean(
+    props.workspaceScope
+      && !sameWorkspacePath(props.workspaceScope.project_path, props.defaultWorkspacePath),
+  );
 
   return (
     <nav
@@ -121,9 +126,10 @@ export function Sidebar(props: SidebarProps) {
         )}
       </div>
 
-      {props.workspaceScope ? (
+      {showProjectButton && props.workspaceScope ? (
         <SidebarProjectButton
           scope={props.workspaceScope}
+          defaultWorkspacePath={props.defaultWorkspacePath}
           collapsed={collapsed}
           disabled={props.workspaceScopeDisabled}
           onClick={props.onOpenWorkspacePicker}
@@ -196,6 +202,7 @@ export function Sidebar(props: SidebarProps) {
             showTimestamps={props.viewState?.show_timestamps}
             sort={props.viewState?.sort}
             showArchived={props.showArchived}
+            defaultWorkspacePath={props.defaultWorkspacePath}
             actionMenuPortalContainer={
               props.containActionMenus ? menuPortalContainer : undefined
             }
@@ -280,18 +287,23 @@ function SidebarActionButton({
 
 function SidebarProjectButton({
   scope,
+  defaultWorkspacePath,
   collapsed,
   disabled,
   onClick,
 }: {
   scope: WorkspaceScopePayload;
+  defaultWorkspacePath?: string | null;
   collapsed: boolean;
   disabled?: boolean;
   onClick?: () => void;
 }) {
   const { t } = useTranslation();
   const isFull = scope.access_mode === "full";
-  const label = scope.project_name || projectName(scope.project_path);
+  const isDefaultWorkspace = sameWorkspacePath(scope.project_path, defaultWorkspacePath);
+  const label = isDefaultWorkspace
+    ? t("chat.groups.all")
+    : scope.project_name || projectName(scope.project_path);
   const subtitle = shortPath(scope.project_path);
 
   return (
@@ -367,6 +379,16 @@ function shortPath(path: string): string {
   const parts = normalized.split("/").filter(Boolean);
   if (parts.length <= 3) return path;
   return `…/${parts.slice(-3).join("/")}`;
+}
+
+function normalizeWorkspacePath(path: string | null | undefined): string {
+  const normalized = (path ?? "").replace(/\\/g, "/").replace(/\/+$/, "");
+  return normalized || "/";
+}
+
+function sameWorkspacePath(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  return normalizeWorkspacePath(a) === normalizeWorkspacePath(b);
 }
 
 function SidebarViewMenu({

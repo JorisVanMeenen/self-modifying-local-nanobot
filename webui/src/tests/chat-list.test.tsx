@@ -77,4 +77,51 @@ describe("ChatList", () => {
     expect(within(nanobotSection).getByLabelText("Agent running")).toBeInTheDocument();
     expect(screen.queryByText("Today")).not.toBeInTheDocument();
   });
+
+  it("keeps default workspace chats in the Chats section instead of a project folder", () => {
+    const sessions = [
+      session({
+        chatId: "default",
+        title: "Default workspace chat",
+        updatedAt: "2026-05-21T10:00:00Z",
+        workspaceScope: {
+          project_path: "/Users/me/.nanobot/workspace",
+          project_name: "workspace",
+          access_mode: "restricted",
+        },
+      }),
+      session({
+        chatId: "project",
+        title: "Project chat",
+        updatedAt: "2026-05-21T11:00:00Z",
+        workspaceScope: {
+          project_path: "/Users/me/nanobot",
+          project_name: "nanobot",
+          access_mode: "restricted",
+        },
+      }),
+    ];
+
+    render(
+      <ChatList
+        sessions={sessions}
+        activeKey="websocket:default"
+        onSelect={vi.fn()}
+        onRequestDelete={vi.fn()}
+        onTogglePin={vi.fn()}
+        onRequestRename={vi.fn()}
+        onToggleArchive={vi.fn()}
+        defaultWorkspacePath="/Users/me/.nanobot/workspace"
+        showTimestamps
+      />,
+    );
+
+    expect(screen.getByText("Projects")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "nanobot" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "workspace" })).not.toBeInTheDocument();
+
+    const chatsSection = screen.getByRole("region", { name: "Chats" });
+    expect(within(chatsSection).getByText("Default workspace chat")).toBeInTheDocument();
+    expect(within(chatsSection).queryByText("Project chat")).not.toBeInTheDocument();
+  });
 });

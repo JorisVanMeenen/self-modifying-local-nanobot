@@ -885,6 +885,7 @@ function Shell({
     showArchived: sidebarState.view.show_archived,
     archivedCount: sidebarState.archived_keys.length,
     workspaceScope: activeWorkspaceScope,
+    defaultWorkspacePath: workspaces?.default_scope.project_path ?? null,
     workspaceScopeDisabled: activeChatRunning,
     onOpenWorkspacePicker: () => setWorkspacePickerOpen(true),
   };
