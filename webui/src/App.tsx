@@ -357,6 +357,10 @@ function Shell({
     key: string;
     label: string;
   } | null>(null);
+  const [pendingProjectRename, setPendingProjectRename] = useState<{
+    key: string;
+    label: string;
+  } | null>(null);
   const restartSawDisconnectRef = useRef(false);
   const [restartToast, setRestartToast] = useState<string | null>(null);
   const [isRestarting, setIsRestarting] = useState(false);
@@ -628,6 +632,50 @@ function Shell({
     [pendingRename, updateSidebarState],
   );
 
+  const onToggleGroup = useCallback(
+    (groupId: string) => {
+      void updateSidebarState((current) => {
+        const collapsedGroups = { ...current.collapsed_groups };
+        if (collapsedGroups[groupId]) {
+          delete collapsedGroups[groupId];
+        } else {
+          collapsedGroups[groupId] = true;
+        }
+        return {
+          ...current,
+          collapsed_groups: collapsedGroups,
+        };
+      });
+    },
+    [updateSidebarState],
+  );
+
+  const onRequestRenameProject = useCallback((key: string, label: string) => {
+    setPendingProjectRename({ key, label });
+  }, []);
+
+  const onConfirmProjectRename = useCallback(
+    (title: string) => {
+      if (!pendingProjectRename) return;
+      const key = pendingProjectRename.key;
+      setPendingProjectRename(null);
+      void updateSidebarState((current) => {
+        const projectNameOverrides = { ...current.project_name_overrides };
+        const cleaned = title.trim();
+        if (cleaned) {
+          projectNameOverrides[key] = cleaned;
+        } else {
+          delete projectNameOverrides[key];
+        }
+        return {
+          ...current,
+          project_name_overrides: projectNameOverrides,
+        };
+      });
+    },
+    [pendingProjectRename, updateSidebarState],
+  );
+
   const onToggleArchive = useCallback(
     (key: string) => {
       void updateSidebarState((current) => {
@@ -858,6 +906,8 @@ function Shell({
     onTogglePin,
     onRequestRename,
     onToggleArchive,
+    onToggleGroup,
+    onRequestRenameProject,
     onOpenSettings,
     onOpenApps,
     onOpenSearch: onOpenSessionSearch,
@@ -867,6 +917,8 @@ function Shell({
     pinnedKeys: sidebarState.pinned_keys,
     archivedKeys: sidebarState.archived_keys,
     titleOverrides: sidebarState.title_overrides,
+    projectNameOverrides: sidebarState.project_name_overrides,
+    collapsedGroups: sidebarState.collapsed_groups,
     runningChatIds: runningChatIdList,
     completedChatIds: completedChatIdList,
     viewState: sidebarState.view,
@@ -988,6 +1040,15 @@ function Shell({
           title={pendingRename?.label ?? ""}
           onCancel={() => setPendingRename(null)}
           onConfirm={onConfirmRename}
+        />
+        <RenameChatDialog
+          open={!!pendingProjectRename}
+          title={pendingProjectRename?.label ?? ""}
+          dialogTitle={t("chat.renameProjectTitle")}
+          description={t("chat.renameProjectDescription")}
+          placeholder={t("chat.renameProjectPlaceholder")}
+          onCancel={() => setPendingProjectRename(null)}
+          onConfirm={onConfirmProjectRename}
         />
         {restartToast ? (
           <div

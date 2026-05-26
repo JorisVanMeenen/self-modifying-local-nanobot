@@ -258,6 +258,7 @@ describe("webui API helpers", () => {
       pinned_keys: ["websocket:chat-1"],
       archived_keys: ["websocket:old"],
       title_overrides: { "websocket:chat-1": "Release" },
+      project_name_overrides: { "/Users/me/nanobot": "Core" },
       tags_by_key: {},
       collapsed_groups: {},
       view: {
@@ -293,6 +294,7 @@ describe("webui API helpers", () => {
     expect(JSON.parse(encodedState ?? "{}")).toMatchObject({
       pinned_keys: ["websocket:chat-1"],
       title_overrides: { "websocket:chat-1": "Release" },
+      project_name_overrides: { "/Users/me/nanobot": "Core" },
     });
   });
 

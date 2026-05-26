@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ChatList } from "@/components/ChatList";
@@ -123,5 +123,51 @@ describe("ChatList", () => {
     const chatsSection = screen.getByRole("region", { name: "Chats" });
     expect(within(chatsSection).getByText("Default workspace chat")).toBeInTheDocument();
     expect(within(chatsSection).queryByText("Project chat")).not.toBeInTheDocument();
+  });
+
+  it("can collapse a project group and keeps project rename separate from chat titles", async () => {
+    const onToggleGroup = vi.fn();
+    const onRequestRenameProject = vi.fn();
+    const sessions = [
+      session({
+        chatId: "alpha",
+        title: "Alpha task",
+        workspaceScope: {
+          project_path: "/Users/me/nanobot",
+          project_name: "nanobot",
+          access_mode: "restricted",
+        },
+      }),
+    ];
+
+    render(
+      <ChatList
+        sessions={sessions}
+        activeKey="websocket:alpha"
+        onSelect={vi.fn()}
+        onRequestDelete={vi.fn()}
+        onTogglePin={vi.fn()}
+        onRequestRename={vi.fn()}
+        onToggleArchive={vi.fn()}
+        onToggleGroup={onToggleGroup}
+        onRequestRenameProject={onRequestRenameProject}
+        projectNameOverrides={{ "/Users/me/nanobot": "Photos" }}
+        collapsedGroups={{ "project:/Users/me/nanobot": true }}
+      />,
+    );
+
+    const projectSection = screen.getByRole("region", { name: "Photos" });
+    fireEvent.click(within(projectSection).getByRole("button", { name: "Photos" }));
+
+    expect(onToggleGroup).toHaveBeenCalledWith("project:/Users/me/nanobot");
+    expect(within(projectSection).queryByText("Alpha task")).not.toBeInTheDocument();
+
+    fireEvent.pointerDown(
+      within(projectSection).getByLabelText("Chat actions for Photos"),
+      { button: 0 },
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Rename" }));
+
+    expect(onRequestRenameProject).toHaveBeenCalledWith("/Users/me/nanobot", "Photos");
   });
 });

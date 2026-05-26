@@ -7,6 +7,8 @@ import {
 import {
   Archive,
   ArchiveRestore,
+  ChevronDown,
+  ChevronRight,
   Folder,
   MoreHorizontal,
   Pencil,
@@ -37,9 +39,13 @@ interface ChatListProps {
   onTogglePin: (key: string) => void;
   onRequestRename: (key: string, label: string) => void;
   onToggleArchive: (key: string) => void;
+  onToggleGroup?: (groupId: string) => void;
+  onRequestRenameProject?: (projectKey: string, label: string) => void;
   pinnedKeys?: string[];
   archivedKeys?: string[];
   titleOverrides?: Record<string, string>;
+  projectNameOverrides?: Record<string, string>;
+  collapsedGroups?: Record<string, boolean>;
   runningChatIds?: string[];
   completedChatIds?: string[];
   density?: SidebarDensity;
@@ -59,6 +65,7 @@ interface SessionGroup {
   sessions: ChatSummary[];
   kind?: "project";
   projectPath?: string;
+  projectKey?: string;
   updatedAt?: string | null;
 }
 
@@ -70,9 +77,13 @@ export const ChatList = memo(function ChatList({
   onTogglePin,
   onRequestRename,
   onToggleArchive,
+  onToggleGroup,
+  onRequestRenameProject,
   pinnedKeys = [],
   archivedKeys = [],
   titleOverrides = {},
+  projectNameOverrides = {},
+  collapsedGroups = {},
   runningChatIds = [],
   completedChatIds = [],
   density = "comfortable",
@@ -102,6 +113,7 @@ export const ChatList = memo(function ChatList({
       pinnedKeys,
       archivedKeys,
       titleOverrides,
+      projectNameOverrides,
       showArchived,
       sort,
       defaultWorkspacePath,
@@ -114,16 +126,21 @@ export const ChatList = memo(function ChatList({
       showArchived,
       sort,
       titleOverrides,
+      projectNameOverrides,
       defaultWorkspacePath,
     ],
   );
   const limitedGroups = useMemo(
-    () => limitGroups(groups, visibleLimit, activeKey),
-    [activeKey, groups, visibleLimit],
+    () => limitGroups(groups, visibleLimit, activeKey, collapsedGroups),
+    [activeKey, collapsedGroups, groups, visibleLimit],
   );
   const totalSessionCount = useMemo(
-    () => groups.reduce((total, group) => total + group.sessions.length, 0),
-    [groups],
+    () => groups.reduce(
+      (total, group) =>
+        total + (isCollapsedProject(group, collapsedGroups) ? 0 : group.sessions.length),
+      0,
+    ),
+    [collapsedGroups, groups],
   );
   const visibleSessionCount = useMemo(
     () => limitedGroups.reduce((total, group) => total + group.sessions.length, 0),
@@ -172,6 +189,14 @@ export const ChatList = memo(function ChatList({
               <ProjectGroupHeader
                 label={group.label}
                 path={group.projectPath}
+                collapsed={Boolean(collapsedGroups[group.id])}
+                onToggle={() => onToggleGroup?.(group.id)}
+                onRequestRename={
+                  group.projectKey && onRequestRenameProject
+                    ? () => onRequestRenameProject(group.projectKey ?? "", group.label)
+                    : undefined
+                }
+                actionMenuPortalContainer={actionMenuPortalContainer}
                 updatedAt={showTimestamps ? group.updatedAt : null}
               />
             ) : (
@@ -179,53 +204,54 @@ export const ChatList = memo(function ChatList({
                 {group.label}
               </div>
             )}
-            <ul className="space-y-0.5">
-              {group.sessions.map((s) => {
-                const active = s.key === activeKey;
-                const fallbackTitle = t("chat.fallbackTitle", {
-                  id: s.chatId.slice(0, 6),
-                });
-                const generatedTitle = s.title?.trim() || "";
-                const title = displayTitle(s, titleOverrides, t("chat.newChat"));
-                const tooltipTitle =
-                  titleOverrides[s.key]?.trim() ||
-                  generatedTitle ||
-                  deriveTitle(s.preview, fallbackTitle);
-                const isPinned = pinned.has(s.key);
-                const isArchived = archived.has(s.key);
-                const preview = s.preview.trim();
-                const showPreview = showPreviews && preview && preview !== title;
-                const timestamp = showTimestamps
-                  ? relativeTime(s.updatedAt ?? s.createdAt)
-                  : "";
-                const projectMode = group.kind === "project";
-                const activityState = running.has(s.chatId)
-                  ? "running"
-                  : completed.has(s.chatId)
-                    ? "complete"
-                    : null;
-                return (
-                  <li key={s.key} className="min-w-0">
-                    <div
-                      className={cn(
-                        "group flex min-w-0 max-w-full items-center gap-2 rounded-xl px-2 text-[13px] transition-colors",
-                        compact ? "min-h-7" : "min-h-8",
-                        active
-                          ? "bg-sidebar-accent/70 text-sidebar-accent-foreground shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border)/0.28)]"
-                          : "text-sidebar-foreground/82 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
-                      )}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => onSelect(s.key)}
-                        title={tooltipTitle}
+            {group.kind === "project" && collapsedGroups[group.id] ? null : (
+              <ul className="space-y-0.5">
+                {group.sessions.map((s) => {
+                  const active = s.key === activeKey;
+                  const fallbackTitle = t("chat.fallbackTitle", {
+                    id: s.chatId.slice(0, 6),
+                  });
+                  const generatedTitle = s.title?.trim() || "";
+                  const title = displayTitle(s, titleOverrides, t("chat.newChat"));
+                  const tooltipTitle =
+                    titleOverrides[s.key]?.trim() ||
+                    generatedTitle ||
+                    deriveTitle(s.preview, fallbackTitle);
+                  const isPinned = pinned.has(s.key);
+                  const isArchived = archived.has(s.key);
+                  const preview = s.preview.trim();
+                  const showPreview = showPreviews && preview && preview !== title;
+                  const timestamp = showTimestamps
+                    ? relativeTime(s.updatedAt ?? s.createdAt)
+                    : "";
+                  const projectMode = group.kind === "project";
+                  const activityState = running.has(s.chatId)
+                    ? "running"
+                    : completed.has(s.chatId)
+                      ? "complete"
+                      : null;
+                  return (
+                    <li key={s.key} className="min-w-0">
+                      <div
                         className={cn(
-                          "min-w-0 flex-1 overflow-hidden text-left",
-                          compact ? "py-1" : "py-1.5",
-                          projectMode && "pl-7",
+                          "group flex min-w-0 max-w-full items-center gap-2 rounded-xl px-2 text-[13px] transition-colors",
+                          compact ? "min-h-7" : "min-h-8",
+                          active
+                            ? "bg-sidebar-accent/70 text-sidebar-accent-foreground shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border)/0.28)]"
+                            : "text-sidebar-foreground/82 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
                         )}
                       >
-                        {projectMode ? (
+                        <button
+                          type="button"
+                          onClick={() => onSelect(s.key)}
+                          title={tooltipTitle}
+                          className={cn(
+                            "min-w-0 flex-1 overflow-hidden text-left",
+                            compact ? "py-1" : "py-1.5",
+                            projectMode && "pl-7",
+                          )}
+                        >
+                          {projectMode ? (
                           <span className="flex w-full min-w-0 items-baseline gap-2">
                             <span className="min-w-0 flex-1 truncate font-medium leading-5">
                               {title}
@@ -251,67 +277,68 @@ export const ChatList = memo(function ChatList({
                             {timestamp}
                           </span>
                         ) : null}
-                      </button>
-                      <SessionActivityIndicator state={activityState} />
-                      <DropdownMenu modal={false}>
-                        <DropdownMenuTrigger
-                          className={cn(
-                            "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/75 opacity-40 transition-opacity",
-                            "hover:bg-sidebar-accent hover:text-sidebar-foreground group-hover:opacity-100",
-                            "focus-visible:opacity-100",
-                            active && "opacity-100",
-                          )}
-                          aria-label={t("chat.actions", { title })}
-                        >
-                          <MoreHorizontal className="h-3.5 w-3.5" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                          align="end"
-                          portalContainer={actionMenuPortalContainer}
-                          onCloseAutoFocus={(event) => event.preventDefault()}
-                        >
-                          <DropdownMenuItem
-                            onSelect={() => onTogglePin(s.key)}
-                          >
-                            {isPinned ? (
-                              <PinOff className="mr-2 h-4 w-4" />
-                            ) : (
-                              <Pin className="mr-2 h-4 w-4" />
+                        </button>
+                        <SessionActivityIndicator state={activityState} />
+                        <DropdownMenu modal={false}>
+                          <DropdownMenuTrigger
+                            className={cn(
+                              "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/75 opacity-40 transition-opacity",
+                              "hover:bg-sidebar-accent hover:text-sidebar-foreground group-hover:opacity-100",
+                              "focus-visible:opacity-100",
+                              active && "opacity-100",
                             )}
-                            {isPinned ? t("chat.unpin") : t("chat.pin")}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onSelect={() => onRequestRename(s.key, title)}
+                            aria-label={t("chat.actions", { title })}
                           >
-                            <Pencil className="mr-2 h-4 w-4" />
-                            {t("chat.rename")}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onSelect={() => onToggleArchive(s.key)}
+                            <MoreHorizontal className="h-3.5 w-3.5" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="end"
+                            portalContainer={actionMenuPortalContainer}
+                            onCloseAutoFocus={(event) => event.preventDefault()}
                           >
-                            {isArchived ? (
-                              <ArchiveRestore className="mr-2 h-4 w-4" />
-                            ) : (
-                              <Archive className="mr-2 h-4 w-4" />
-                            )}
-                            {isArchived ? t("chat.unarchive") : t("chat.archive")}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onSelect={() => {
-                              window.setTimeout(() => onRequestDelete(s.key, title), 0);
-                            }}
-                            className="text-destructive focus:text-destructive"
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            {t("chat.delete")}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+                            <DropdownMenuItem
+                              onSelect={() => onTogglePin(s.key)}
+                            >
+                              {isPinned ? (
+                                <PinOff className="mr-2 h-4 w-4" />
+                              ) : (
+                                <Pin className="mr-2 h-4 w-4" />
+                              )}
+                              {isPinned ? t("chat.unpin") : t("chat.pin")}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => onRequestRename(s.key, title)}
+                            >
+                              <Pencil className="mr-2 h-4 w-4" />
+                              {t("chat.rename")}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => onToggleArchive(s.key)}
+                            >
+                              {isArchived ? (
+                                <ArchiveRestore className="mr-2 h-4 w-4" />
+                              ) : (
+                                <Archive className="mr-2 h-4 w-4" />
+                              )}
+                              {isArchived ? t("chat.unarchive") : t("chat.archive")}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                window.setTimeout(() => onRequestDelete(s.key, title), 0);
+                              }}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              {t("chat.delete")}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </section>
         ))}
         {hiddenSessionCount > 0 ? (
@@ -337,23 +364,66 @@ export const ChatList = memo(function ChatList({
 function ProjectGroupHeader({
   label,
   path,
+  collapsed,
+  onToggle,
+  onRequestRename,
+  actionMenuPortalContainer,
   updatedAt,
 }: {
   label: string;
   path?: string;
+  collapsed: boolean;
+  onToggle: () => void;
+  onRequestRename?: () => void;
+  actionMenuPortalContainer?: HTMLElement | null;
   updatedAt?: string | null;
 }) {
+  const { t } = useTranslation();
+  const Chevron = collapsed ? ChevronRight : ChevronDown;
+
   return (
     <div
       title={path}
-      className="flex min-w-0 items-center gap-2 px-2 pb-1 pt-1 text-[12px] font-medium text-muted-foreground/78"
+      className="group flex min-w-0 items-center gap-1 px-1 pb-1 pt-1 text-[12px] font-medium text-muted-foreground/78"
     >
-      <Folder className="h-3.5 w-3.5 shrink-0" aria-hidden />
-      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <button
+        type="button"
+        aria-expanded={!collapsed}
+        onClick={onToggle}
+        className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1.5 py-1 text-left transition-colors hover:bg-sidebar-accent/45 hover:text-sidebar-foreground"
+      >
+        <Folder className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        <Chevron className="h-3.5 w-3.5 shrink-0 opacity-55" aria-hidden />
+      </button>
       {updatedAt ? (
         <span className="shrink-0 text-[11px] text-muted-foreground/55">
           {relativeTime(updatedAt)}
         </span>
+      ) : null}
+      {onRequestRename ? (
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger
+            className={cn(
+              "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 opacity-40 transition-opacity",
+              "hover:bg-sidebar-accent hover:text-sidebar-foreground group-hover:opacity-100 focus-visible:opacity-100",
+            )}
+            aria-label={t("chat.actions", { title: label })}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <MoreHorizontal className="h-3.5 w-3.5" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            portalContainer={actionMenuPortalContainer}
+            onCloseAutoFocus={(event) => event.preventDefault()}
+          >
+            <DropdownMenuItem onSelect={onRequestRename}>
+              <Pencil className="mr-2 h-4 w-4" />
+              {t("chat.rename")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       ) : null}
     </div>
   );
@@ -411,6 +481,7 @@ function groupSessions(
     pinnedKeys: string[];
     archivedKeys: string[];
     titleOverrides: Record<string, string>;
+    projectNameOverrides: Record<string, string>;
     showArchived: boolean;
     sort: SidebarSortMode;
     defaultWorkspacePath?: string | null;
@@ -513,6 +584,7 @@ function groupSessionsByProject(
     pinnedKeys: string[];
     archivedKeys: string[];
     titleOverrides: Record<string, string>;
+    projectNameOverrides: Record<string, string>;
     showArchived: boolean;
     sort: SidebarSortMode;
     defaultWorkspacePath?: string | null;
@@ -537,9 +609,10 @@ function groupSessionsByProject(
       conversations.push(session);
       continue;
     }
-    const label = scope?.project_name?.trim()
-      || projectName(path);
     const key = normalizeWorkspacePath(path);
+    const label = options.projectNameOverrides[key]?.trim()
+      || scope?.project_name?.trim()
+      || projectName(path);
     const bucket = buckets.get(key) ?? {
       path,
       label,
@@ -560,6 +633,7 @@ function groupSessionsByProject(
     label: bucket.label,
     kind: "project" as const,
     projectPath: bucket.path,
+    projectKey: key,
     updatedAt: bucket.updatedAt,
     sessions: sortProjectSessions(
       bucket.sessions,
@@ -600,12 +674,17 @@ function limitGroups(
   groups: SessionGroup[],
   limit: number,
   activeKey: string | null,
+  collapsedGroups: Record<string, boolean>,
 ): SessionGroup[] {
   let remaining = Math.max(0, limit);
   let activeVisible = !activeKey;
   const out: SessionGroup[] = [];
 
   for (const group of groups) {
+    if (isCollapsedProject(group, collapsedGroups)) {
+      out.push({ ...group, sessions: [] });
+      continue;
+    }
     const visible = remaining > 0
       ? group.sessions.slice(0, remaining)
       : [];
@@ -621,6 +700,7 @@ function limitGroups(
   if (activeVisible || !activeKey) return out;
 
   for (const group of groups) {
+    if (isCollapsedProject(group, collapsedGroups)) continue;
     const active = group.sessions.find((session) => session.key === activeKey);
     if (!active) continue;
     const existing = out.find((item) => item.id === group.id);
@@ -633,6 +713,13 @@ function limitGroups(
   }
 
   return out;
+}
+
+function isCollapsedProject(
+  group: SessionGroup,
+  collapsedGroups: Record<string, boolean>,
+): boolean {
+  return group.kind === "project" && Boolean(collapsedGroups[group.id]);
 }
 
 function sortProjectSessions(

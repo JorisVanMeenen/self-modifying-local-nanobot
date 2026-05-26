@@ -42,6 +42,8 @@ interface SidebarProps {
   onTogglePin: (key: string) => void;
   onRequestRename: (key: string, label: string) => void;
   onToggleArchive: (key: string) => void;
+  onToggleGroup: (groupId: string) => void;
+  onRequestRenameProject: (projectKey: string, label: string) => void;
   onOpenSettings: () => void;
   onOpenApps: () => void;
   onOpenSearch: () => void;
@@ -55,6 +57,8 @@ interface SidebarProps {
   pinnedKeys?: string[];
   archivedKeys?: string[];
   titleOverrides?: Record<string, string>;
+  projectNameOverrides?: Record<string, string>;
+  collapsedGroups?: Record<string, boolean>;
   runningChatIds?: string[];
   completedChatIds?: string[];
   viewState?: SidebarViewState;
@@ -173,9 +177,13 @@ export function Sidebar(props: SidebarProps) {
             onTogglePin={props.onTogglePin}
             onRequestRename={props.onRequestRename}
             onToggleArchive={props.onToggleArchive}
+            onToggleGroup={props.onToggleGroup}
+            onRequestRenameProject={props.onRequestRenameProject}
             pinnedKeys={props.pinnedKeys}
             archivedKeys={props.archivedKeys}
             titleOverrides={props.titleOverrides}
+            projectNameOverrides={props.projectNameOverrides}
+            collapsedGroups={props.collapsedGroups}
             runningChatIds={props.runningChatIds}
             completedChatIds={props.completedChatIds}
             density={props.viewState?.density}
