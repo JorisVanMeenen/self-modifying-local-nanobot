@@ -264,7 +264,7 @@ export interface SettingsPayload {
       schedule: string;
       max_batch_size: number;
       max_iterations: number;
-      annotate_line_ages: boolean;
+      reasoning_effort: string | null;
     };
     unified_session: boolean;
   };

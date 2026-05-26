@@ -306,7 +306,7 @@ def settings_payload(*, requires_restart: bool = False) -> dict[str, Any]:
                 "schedule": defaults.dream.describe_schedule(),
                 "max_batch_size": defaults.dream.max_batch_size,
                 "max_iterations": defaults.dream.max_iterations,
-                "annotate_line_ages": defaults.dream.annotate_line_ages,
+                "reasoning_effort": defaults.dream.reasoning_effort,
             },
             "unified_session": defaults.unified_session,
         },
