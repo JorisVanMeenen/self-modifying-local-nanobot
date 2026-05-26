@@ -1619,11 +1619,11 @@ function WorkspaceAccessMenu({
           variant="ghost"
           aria-label={t("thread.composer.workspace.accessAria")}
           className={cn(
-            "max-w-[12.5rem] rounded-full border font-semibold shadow-[0_2px_8px_rgba(15,23,42,0.04)]",
+            "max-w-[12.5rem] rounded-[10px] border border-transparent font-semibold shadow-none",
             isHero ? "h-8 px-2.5 text-[12px]" : "h-9 px-3 text-[12.5px]",
             isFull
-              ? "border-orange-300/55 bg-orange-500/10 text-orange-600 hover:bg-orange-500/14 dark:border-orange-400/25 dark:bg-orange-500/12 dark:text-orange-300"
-              : "border-border/55 bg-card text-muted-foreground hover:bg-card hover:text-foreground",
+              ? "bg-transparent text-orange-600 hover:bg-orange-500/8 dark:text-orange-300 dark:hover:bg-orange-400/10"
+              : "bg-transparent text-muted-foreground hover:bg-foreground/[0.045] hover:text-foreground dark:hover:bg-white/[0.06]",
           )}
         >
           {isFull ? (
