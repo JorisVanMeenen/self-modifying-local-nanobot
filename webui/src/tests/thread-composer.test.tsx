@@ -158,7 +158,7 @@ describe("ThreadComposer", () => {
     expect(screen.queryByRole("button", { name: "Voice input" })).not.toBeInTheDocument();
     const input = screen.getByPlaceholderText("Ask anything...");
     expect(input).toBeInTheDocument();
-    expect(input.className).toContain("min-h-[78px]");
+    expect(input.className).toContain("min-h-[70px]");
     expect(input.parentElement?.parentElement?.className).toContain("max-w-[58rem]");
   });
 

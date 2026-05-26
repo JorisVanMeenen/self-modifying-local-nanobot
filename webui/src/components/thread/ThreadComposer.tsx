@@ -1159,7 +1159,7 @@ export function ThreadComposer({
   const inputTextClasses = cn(
     "w-full resize-none bg-transparent",
     isHero
-      ? "min-h-[78px] px-5 pb-2 pt-5 text-[15px] leading-6"
+      ? "min-h-[70px] px-5 pb-1.5 pt-4 text-[15px] leading-6"
       : "min-h-[50px] px-4 pb-1.5 pt-3 text-[13.5px] leading-5",
   );
 
@@ -1289,11 +1289,11 @@ export function ThreadComposer({
         ) : null}
         <div
           className={cn(
-            "flex items-center justify-between gap-2",
-            isHero ? cn("px-4", showProjectPicker ? "pb-2" : "pb-4") : "px-3 pb-2",
+            "flex items-center justify-between",
+            isHero ? cn("gap-1.5 px-4", showProjectPicker ? "pb-1.5" : "pb-3.5") : "gap-2 px-3 pb-2",
           )}
         >
-          <div className="flex min-w-0 flex-1 items-center gap-2">
+          <div className={cn("flex min-w-0 flex-1 items-center", isHero ? "gap-1.5" : "gap-2")}>
             <input
               ref={fileInputRef}
               type="file"
@@ -1312,11 +1312,11 @@ export function ThreadComposer({
               className={cn(
                 "rounded-full text-muted-foreground hover:text-foreground",
                 isHero
-                  ? "h-9 w-9 border border-border/55 bg-card shadow-[0_2px_8px_rgba(15,23,42,0.05)] hover:bg-card"
+                  ? "h-8 w-8 border border-border/55 bg-card shadow-[0_2px_8px_rgba(15,23,42,0.05)] hover:bg-card"
                   : "h-9 w-9 border border-border/55 bg-card shadow-[0_2px_8px_rgba(15,23,42,0.05)] hover:bg-card",
               )}
             >
-              <Plus className={cn(isHero ? "h-5 w-5" : "h-4 w-4")} />
+              <Plus className={cn(isHero ? "h-[18px] w-[18px]" : "h-4 w-4")} />
             </Button>
             {workspaceScope ? (
               <WorkspaceAccessMenu
@@ -1341,13 +1341,13 @@ export function ThreadComposer({
                 }}
                 className={cn(
                   "max-w-[11rem] rounded-full border border-border/55 px-2.5 font-medium shadow-[0_2px_8px_rgba(15,23,42,0.04)]",
-                  "h-9 text-[12px]",
+                  isHero ? "h-8 text-[11.5px]" : "h-9 text-[12px]",
                   imageMode
                     ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/12"
                     : "bg-card text-muted-foreground hover:bg-card hover:text-foreground",
                 )}
               >
-                <ImageIcon className={cn("mr-1.5", isHero ? "h-4 w-4" : "h-3.5 w-3.5")} />
+                <ImageIcon className={cn("mr-1.5", isHero ? "h-3.5 w-3.5" : "h-3.5 w-3.5")} />
                 <span className="truncate">{t("thread.composer.imageMode.label")}</span>
               </Button>
               {imageMode ? (
@@ -1361,7 +1361,7 @@ export function ThreadComposer({
                   onClick={() => setAspectMenuOpen((open) => !open)}
                   className={cn(
                     "rounded-full border border-border/55 bg-card px-2.5 font-medium text-foreground/80 shadow-[0_2px_8px_rgba(15,23,42,0.04)] hover:bg-card",
-                    "h-9 text-[12px]",
+                    isHero ? "h-8 text-[11.5px]" : "h-9 text-[12px]",
                   )}
                 >
                   <span>{t(`thread.composer.imageMode.aspect.${imageAspectRatio.replace(":", "_")}`)}</span>
@@ -1381,7 +1381,7 @@ export function ThreadComposer({
               ) : null}
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className={cn("flex shrink-0 items-center", isHero ? "gap-1.5" : "gap-2")}>
             {!isHero ? (
               <span className="hidden select-none text-[10.5px] text-muted-foreground/60 sm:inline">
                 {t("thread.composer.sendHint")}
@@ -1408,16 +1408,16 @@ export function ThreadComposer({
                   : isHero
                     ? "border border-foreground bg-foreground text-background shadow-[0_4px_12px_rgba(15,23,42,0.20)] hover:bg-foreground/90 disabled:border-foreground/35 disabled:bg-foreground/35 disabled:text-background/80"
                     : "border border-foreground bg-foreground text-background shadow-[0_3px_10px_rgba(15,23,42,0.18)] hover:bg-foreground/90 disabled:border-foreground/35 disabled:bg-foreground/35 disabled:text-background/80",
-                "h-9 w-9",
+                isHero ? "h-8 w-8" : "h-9 w-9",
                 (canSend || showStopButton) && "hover:scale-[1.03] active:scale-95",
               )}
             >
               {showStopButton ? (
-                <Square className={cn("fill-current stroke-current", isHero ? "h-3 w-3" : "h-2.5 w-2.5")} />
+                <Square className={cn("fill-current stroke-current", isHero ? "h-2.5 w-2.5" : "h-2.5 w-2.5")} />
               ) : isStreaming ? (
-                <Loader2 className={cn(isHero ? "h-4.5 w-4.5" : "h-4 w-4", "animate-spin")} />
+                <Loader2 className={cn(isHero ? "h-4 w-4" : "h-4 w-4", "animate-spin")} />
               ) : (
-                <ArrowUp className={cn(isHero ? "h-4.5 w-4.5" : "h-4 w-4")} />
+                <ArrowUp className={cn(isHero ? "h-4 w-4" : "h-4 w-4")} />
               )}
             </Button>
           </div>
@@ -1551,14 +1551,14 @@ function ComposerModelBadge({
       className={cn(
         "inline-flex min-w-0 items-center rounded-full border border-border/55 bg-card font-medium text-foreground/82",
         "shadow-[0_2px_8px_rgba(15,23,42,0.045)]",
-        isHero ? "h-9 max-w-[13.5rem] gap-2 px-2.5 text-[12px]" : "h-9 max-w-[12rem] gap-2 px-2.5 text-[12px]",
+        isHero ? "h-8 max-w-[12.5rem] gap-1.5 px-2 text-[11.5px]" : "h-9 max-w-[12rem] gap-2 px-2.5 text-[12px]",
       )}
     >
       <span
         data-testid={inferredProvider ? `composer-model-logo-${inferredProvider}` : "composer-model-logo"}
         className={cn(
           "grid shrink-0 place-items-center overflow-hidden rounded-full border bg-background",
-          "h-5 w-5",
+          isHero ? "h-[18px] w-[18px]" : "h-5 w-5",
         )}
         style={{
           borderColor: brand ? `${brand.color}28` : undefined,
@@ -1570,21 +1570,21 @@ function ComposerModelBadge({
           <img
             src={logoUrl}
             alt=""
-            className="h-3.5 w-3.5 object-contain"
+            className={cn("object-contain", isHero ? "h-3 w-3" : "h-3.5 w-3.5")}
             onError={() => setLogoIndex((index) => index + 1)}
           />
         ) : brand ? (
           <span
             className={cn(
               "grid h-full w-full place-items-center rounded-full text-white",
-              "text-[8px]",
+              isHero ? "text-[7.5px]" : "text-[8px]",
             )}
             style={{ backgroundColor: brand.color }}
           >
             {brand.initials.slice(0, 2)}
           </span>
         ) : (
-          <Sparkles className={cn("text-muted-foreground/65", isHero ? "h-3.5 w-3.5" : "h-3 w-3")} />
+          <Sparkles className={cn("text-muted-foreground/65", isHero ? "h-3 w-3" : "h-3 w-3")} />
         )}
       </span>
       <span className="truncate">{label}</span>
@@ -1623,21 +1623,22 @@ function WorkspaceAccessMenu({
           variant="ghost"
           aria-label={t("thread.composer.workspace.accessAria")}
           className={cn(
-            "h-9 max-w-[12.5rem] rounded-full border px-3 text-[12.5px] font-semibold shadow-[0_2px_8px_rgba(15,23,42,0.04)]",
+            "max-w-[12.5rem] rounded-full border font-semibold shadow-[0_2px_8px_rgba(15,23,42,0.04)]",
+            isHero ? "h-8 px-2.5 text-[12px]" : "h-9 px-3 text-[12.5px]",
             isFull
               ? "border-orange-300/55 bg-orange-500/10 text-orange-600 hover:bg-orange-500/14 dark:border-orange-400/25 dark:bg-orange-500/12 dark:text-orange-300"
               : "border-border/55 bg-card text-muted-foreground hover:bg-card hover:text-foreground",
           )}
         >
           {isFull ? (
-            <AlertTriangle className={cn("mr-1.5 shrink-0", isHero ? "h-4 w-4" : "h-3.5 w-3.5")} />
+            <AlertTriangle className={cn("mr-1.5 shrink-0", isHero ? "h-3.5 w-3.5" : "h-3.5 w-3.5")} />
           ) : (
-            <Hand className={cn("mr-1.5 shrink-0", isHero ? "h-4 w-4" : "h-3.5 w-3.5")} />
+            <Hand className={cn("mr-1.5 shrink-0", isHero ? "h-3.5 w-3.5" : "h-3.5 w-3.5")} />
           )}
           <span className="truncate">
             {t(isFull ? "thread.composer.workspace.full" : "thread.composer.workspace.default")}
           </span>
-          <ChevronDown className={cn("ml-1.5 shrink-0", isHero ? "h-3.5 w-3.5" : "h-3 w-3")} />
+          <ChevronDown className={cn("ml-1.5 shrink-0", isHero ? "h-3 w-3" : "h-3 w-3")} />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
