@@ -1198,11 +1198,12 @@ export function ThreadComposer({
       ) : null}
       <div
         className={cn(
-          "relative mx-auto flex w-full flex-col overflow-visible transition-all duration-200",
+          "group/composer relative mx-auto flex w-full flex-col overflow-visible transition-all duration-200",
+          "after:pointer-events-none after:absolute after:inset-[-1px] after:rounded-[inherit] after:border after:border-primary/45 after:opacity-0 after:transition-opacity after:duration-200 focus-within:after:opacity-100",
           isHero
             ? "max-w-[58rem] rounded-[28px] border border-black/[0.035] bg-card shadow-[0_20px_55px_rgba(15,23,42,0.08)] dark:border-white/[0.06] dark:shadow-[0_24px_55px_rgba(0,0,0,0.34)]"
             : "max-w-[49.5rem] rounded-[22px] border border-black/[0.035] bg-card shadow-[0_12px_30px_rgba(15,23,42,0.07)] dark:border-white/[0.06] dark:shadow-[0_16px_34px_rgba(0,0,0,0.28)]",
-          "focus-within:ring-1 focus-within:ring-foreground/8",
+          "focus-within:border-primary/45",
           disabled && "opacity-60",
           isDragging && "ring-2 ring-primary/40 motion-reduce:ring-0 motion-reduce:border-primary",
           goalState?.active &&
@@ -1418,7 +1419,7 @@ export function ThreadComposer({
           </div>
         </div>
         {showProjectPicker ? (
-          <div className="flex items-center border-t border-border/35 bg-muted/60 px-4 py-1.5 dark:bg-white/[0.055]">
+          <div className="flex items-center border-t border-border/35 bg-muted/60 px-4 py-1.5 transition-colors group-focus-within/composer:border-primary/35 dark:bg-white/[0.055]">
             <DropdownMenu open={projectMenuOpen} onOpenChange={setProjectMenuOpen}>
               <DropdownMenuTrigger asChild>
                 <button
