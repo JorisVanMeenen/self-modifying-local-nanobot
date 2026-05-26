@@ -158,7 +158,7 @@ export const ChatList = memo(function ChatList({
   const compact = density === "compact";
 
   return (
-    <div className="h-full min-h-0 min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain">
+    <div className="h-full min-h-0 min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain scrollbar-thin scrollbar-track-transparent">
       <div className="min-w-0 space-y-3 px-2 py-1.5">
         {limitedGroups.map((group, index) => (
           <section key={group.id} aria-label={group.label}>
