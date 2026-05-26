@@ -66,6 +66,15 @@ async def _http_get(url: str, headers: dict[str, str] | None = None) -> httpx.Re
     )
 
 
+async def _recv_ws_event(client: Any, event: str) -> dict[str, Any]:
+    """Receive until a specific websocket event appears."""
+    for _ in range(10):
+        payload = json.loads(await client.recv())
+        if payload.get("event") == event:
+            return payload
+    raise AssertionError(f"websocket event {event!r} was not received")
+
+
 def test_normalize_http_path_strips_trailing_slash_except_root() -> None:
     assert _normalize_http_path("/chat/") == "/chat"
     assert _normalize_http_path("/chat?x=1") == "/chat"
@@ -1950,16 +1959,16 @@ async def test_multiplex_two_chats_isolated(bus: MagicMock) -> None:
             await client.recv()  # ready
 
             await client.send(json.dumps({"type": "new_chat"}))
-            chat_a = json.loads(await client.recv())["chat_id"]
+            chat_a = (await _recv_ws_event(client, "attached"))["chat_id"]
             await client.send(json.dumps({"type": "new_chat"}))
-            chat_b = json.loads(await client.recv())["chat_id"]
+            chat_b = (await _recv_ws_event(client, "attached"))["chat_id"]
             assert chat_a != chat_b
 
             # Push A → client sees A only (FIFO over the single WS).
             await channel.send(
                 OutboundMessage(channel="websocket", chat_id=chat_a, content="for-A")
             )
-            msg_a = json.loads(await client.recv())
+            msg_a = await _recv_ws_event(client, "message")
             assert msg_a["chat_id"] == chat_a
             assert msg_a["text"] == "for-A"
 
@@ -1967,7 +1976,7 @@ async def test_multiplex_two_chats_isolated(bus: MagicMock) -> None:
             await channel.send(
                 OutboundMessage(channel="websocket", chat_id=chat_b, content="for-B")
             )
-            msg_b = json.loads(await client.recv())
+            msg_b = await _recv_ws_event(client, "message")
             assert msg_b["chat_id"] == chat_b
             assert msg_b["text"] == "for-B"
     finally:
@@ -2089,6 +2098,9 @@ def test_sessions_list_includes_active_run_started_at() -> None:
 
     assert resp.status_code == 200
     body = json.loads(resp.body.decode())
+    workspace_scope = body["sessions"][0].pop("workspace_scope")
+    assert workspace_scope["project_path"] == str(channel._workspace_path)
+    assert workspace_scope["access_mode"] in {"restricted", "full"}
     assert body["sessions"] == [
         {
             "key": "websocket:chat-1",

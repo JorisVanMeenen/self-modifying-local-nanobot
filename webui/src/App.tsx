@@ -576,6 +576,8 @@ function Shell({
       }
       if (selected?.workspaceScope) {
         setDraftWorkspaceScope(normalizeWorkspaceScope(selected.workspaceScope));
+      } else {
+        setDraftWorkspaceScope(null);
       }
       setActiveKey(key);
       setView("chat");
