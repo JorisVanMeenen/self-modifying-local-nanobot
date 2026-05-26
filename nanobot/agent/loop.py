@@ -1218,18 +1218,15 @@ class AgentLoop:
             memory_lines = raw_memory.splitlines()
             soul_lines = raw_soul.splitlines()
             user_lines = raw_user.splitlines()
-            memory_path = workspace / "memory" / "MEMORY.md"
-            soul_path = workspace / "SOUL.md"
-            user_path = workspace / "USER.md"
 
             file_context = (
                 f"## Current Date\n{current_date}\n\n"
                 f"## Memory Files (read before editing)\n"
-                f"- MEMORY.md: {memory_path} "
+                f"- MEMORY.md: memory/MEMORY.md "
                 f"({len(raw_memory)} chars, {len(memory_lines)} lines)\n"
-                f"- SOUL.md: {soul_path} "
+                f"- SOUL.md: SOUL.md "
                 f"({len(raw_soul)} chars, {len(soul_lines)} lines)\n"
-                f"- USER.md: {user_path} "
+                f"- USER.md: USER.md "
                 f"({len(raw_user)} chars, {len(user_lines)} lines)"
             )
 

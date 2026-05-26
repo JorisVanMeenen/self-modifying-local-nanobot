@@ -53,6 +53,5 @@ For [SKILL] entries:
 - Default tool: apply_patch. Use edit_file only for small exact replacements.
 - Use read_file to inspect current file contents before editing; they are not embedded in the prompt to keep context compact.
 - Batch all changes into a single apply_patch call. Surgical edits only.
-- dry_run=true to preview. If nothing to update, stop without calling tools.
 
 Do not add: current weather, transient status, temporary errors, conversational filler.
