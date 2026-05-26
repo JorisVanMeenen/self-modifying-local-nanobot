@@ -192,13 +192,17 @@ export default function App() {
           const boot = await fetchBootstrap("", secret);
           if (cancelled) return;
           if (secret) saveSecret(secret);
-          const url = deriveWsUrl(boot.ws_path, boot.token);
+          const url = deriveWsUrl(boot.ws_path, boot.token, boot.ws_url);
           const client = new NanobotClient({
             url,
             onReauth: async () => {
               try {
                 const refreshed = await fetchBootstrap("", bootstrapSecretRef.current);
-                const refreshedUrl = deriveWsUrl(refreshed.ws_path, refreshed.token);
+                const refreshedUrl = deriveWsUrl(
+                  refreshed.ws_path,
+                  refreshed.token,
+                  refreshed.ws_url,
+                );
                 const tokenExpiresAt = bootstrapTokenExpiresAt(refreshed.expires_in);
                 setState((current) =>
                   current.status === "ready" && current.client === client
@@ -248,7 +252,7 @@ export default function App() {
     const timer = window.setTimeout(async () => {
       try {
         const boot = await fetchBootstrap("", bootstrapSecretRef.current);
-        const url = deriveWsUrl(boot.ws_path, boot.token);
+        const url = deriveWsUrl(boot.ws_path, boot.token, boot.ws_url);
         const tokenExpiresAt = bootstrapTokenExpiresAt(boot.expires_in);
         client.updateUrl(url);
         setState((current) =>

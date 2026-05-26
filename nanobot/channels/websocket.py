@@ -112,6 +112,41 @@ def _normalize_config_path(path: str) -> str:
     return _strip_trailing_slash(path)
 
 
+def _case_insensitive_header(headers: Any, key: str) -> str:
+    """Read a header from websockets/http test stubs without assuming casing."""
+    try:
+        value = headers.get(key)
+    except Exception:
+        value = None
+    if value is None:
+        try:
+            value = headers.get(key.lower())
+        except Exception:
+            value = None
+    return str(value or "").strip()
+
+
+def _safe_host_header(value: str) -> str:
+    """Return a safe Host header value, or empty when it should not be echoed."""
+    value = value.strip()
+    if not value:
+        return ""
+    if re.fullmatch(r"\[[0-9A-Fa-f:.]+\](?::\d{1,5})?", value):
+        return value
+    if re.fullmatch(r"[A-Za-z0-9.-]+(?::\d{1,5})?", value):
+        return value
+    return ""
+
+
+def _host_for_url(host: str, port: int) -> str:
+    host = host.strip()
+    if host in ("0.0.0.0", "::"):
+        host = "127.0.0.1"
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    return f"{host}:{port}"
+
+
 class WebSocketConfig(Base):
     """WebSocket server channel configuration.
 
@@ -849,14 +884,29 @@ class WebSocketChannel(BaseChannel):
         # while the REST surface keeps validating the other until TTL expiry.
         self._issued_tokens[token] = expiry
         self._api_tokens[token] = expiry
+        ws_url = self._bootstrap_ws_url(request)
         return _http_json_response(
             {
                 "token": token,
                 "ws_path": self._expected_path(),
+                "ws_url": ws_url,
                 "expires_in": self.config.token_ttl_s,
                 "model_name": _resolve_bootstrap_model_name(self._runtime_model_name),
             }
         )
+
+    def _bootstrap_ws_url(self, request: Any) -> str:
+        """Absolute WS URL clients should prefer over a dev-server proxy."""
+        headers = getattr(request, "headers", {}) or {}
+        host = _safe_host_header(_case_insensitive_header(headers, "Host"))
+        if not host:
+            host = _host_for_url(self.config.host, self.config.port)
+
+        proto = _case_insensitive_header(headers, "X-Forwarded-Proto")
+        proto = proto.split(",", 1)[0].strip().lower()
+        secure = proto in {"https", "wss"} or bool(self.config.ssl_certfile.strip())
+        scheme = "wss" if secure else "ws"
+        return f"{scheme}://{host}{self._expected_path()}"
 
     def _handle_sessions_list(self, request: WsRequest) -> Response:
         if not self._check_api_token(request):
