@@ -281,6 +281,12 @@ class AgentRunner:
         injection_cycles = 0
 
         for iteration in range(spec.max_iterations):
+            logger.info(
+                "Agent iteration {}/{} for {}",
+                iteration + 1,
+                spec.max_iterations,
+                spec.session_key or "default",
+            )
             try:
                 # Keep the persisted conversation untouched. Context governance
                 # may repair or compact historical messages for the model, but
@@ -305,6 +311,12 @@ class AgentRunner:
                     messages_for_model = self._backfill_missing_tool_results(messages_for_model)
                 except Exception:
                     messages_for_model = messages
+            logger.debug(
+                "Context governance for {}: {} → {} messages",
+                spec.session_key or "default",
+                len(messages),
+                len(messages_for_model),
+            )
             context = AgentHookContext(iteration=iteration, messages=messages)
             await hook.before_iteration(context)
             response = await self._request_model(spec, messages_for_model, hook, context)
@@ -313,6 +325,13 @@ class AgentRunner:
             context.usage = dict(raw_usage)
             context.tool_calls = list(response.tool_calls)
             self._accumulate_usage(usage, raw_usage)
+            logger.info(
+                "Model response for {}: finish_reason={}, tool_calls={}, usage={}",
+                spec.session_key or "default",
+                response.finish_reason,
+                len(response.tool_calls),
+                raw_usage,
+            )
 
             reasoning_text, cleaned_content = extract_reasoning(
                 response.reasoning_content,
@@ -350,6 +369,12 @@ class AgentRunner:
                     },
                 )
 
+                logger.info(
+                    "Executing {} tool call(s) for {}: {}",
+                    len(response.tool_calls),
+                    spec.session_key or "default",
+                    [tc.name for tc in response.tool_calls],
+                )
                 await hook.before_execute_tools(context)
 
                 results, new_events, fatal_error = await self._execute_tools(
@@ -357,6 +382,12 @@ class AgentRunner:
                     response.tool_calls,
                     external_lookup_counts,
                     workspace_violation_counts,
+                )
+                logger.info(
+                    "Tool execution complete for {}: {} result(s), fatal_error={}",
+                    spec.session_key or "default",
+                    len(results),
+                    fatal_error is not None,
                 )
                 tool_events.extend(new_events)
                 context.tool_results = list(results)
@@ -557,10 +588,23 @@ class AgentRunner:
             final_content = clean
             context.final_content = final_content
             context.stop_reason = stop_reason
+            logger.info(
+                "Agent turn complete for {}: stop_reason={}, iterations={}/{}, tools_used={}",
+                spec.session_key or "default",
+                stop_reason,
+                iteration + 1,
+                spec.max_iterations,
+                len(tools_used),
+            )
             await hook.after_iteration(context)
             break
         else:
             stop_reason = "max_iterations"
+            logger.warning(
+                "Agent reached max iterations ({}) for {}",
+                spec.max_iterations,
+                spec.session_key or "default",
+            )
             if spec.max_iterations_message:
                 final_content = spec.max_iterations_message.format(
                     max_iterations=spec.max_iterations,
@@ -584,6 +628,15 @@ class AgentRunner:
             if drained_after_max_iterations:
                 had_injections = True
 
+        logger.info(
+            "Agent run result for {}: stop_reason={}, iterations={}/{}, tools_used={}, usage={}",
+            spec.session_key or "default",
+            stop_reason,
+            iteration + 1,
+            spec.max_iterations,
+            len(tools_used),
+            usage,
+        )
         return AgentRunResult(
             final_content=final_content,
             messages=messages,
