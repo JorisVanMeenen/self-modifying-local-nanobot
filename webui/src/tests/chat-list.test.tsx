@@ -170,4 +170,32 @@ describe("ChatList", () => {
 
     expect(onRequestRenameProject).toHaveBeenCalledWith("/Users/me/nanobot", "Photos");
   });
+
+  it("hides the completed dot for the active chat", () => {
+    const sessions = [
+      session({
+        chatId: "active",
+        title: "Active task",
+      }),
+      session({
+        chatId: "done",
+        title: "Done task",
+      }),
+    ];
+
+    render(
+      <ChatList
+        sessions={sessions}
+        activeKey="websocket:active"
+        onSelect={vi.fn()}
+        onRequestDelete={vi.fn()}
+        onTogglePin={vi.fn()}
+        onRequestRename={vi.fn()}
+        onToggleArchive={vi.fn()}
+        completedChatIds={["active", "done"]}
+      />,
+    );
+
+    expect(screen.getAllByLabelText("Agent finished")).toHaveLength(1);
+  });
 });

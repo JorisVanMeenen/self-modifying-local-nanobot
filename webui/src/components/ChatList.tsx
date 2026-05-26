@@ -227,7 +227,7 @@ export const ChatList = memo(function ChatList({
                   const projectMode = group.kind === "project";
                   const activityState = running.has(s.chatId)
                     ? "running"
-                    : completed.has(s.chatId)
+                    : completed.has(s.chatId) && !active
                       ? "complete"
                       : null;
                   return (
