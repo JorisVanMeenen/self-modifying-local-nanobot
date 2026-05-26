@@ -153,13 +153,20 @@ function writeCompletedRunChatIds(chatIds: Set<string>): void {
 
 function workspaceScopeFromLast(payload: WorkspacesPayload): WorkspaceScopePayload {
   const last = payload.last_scope;
-  if (!last) return payload.default_scope;
-  const accessMode = last.access_mode;
+  if (!last) return workspaceScopeWithDefaultPermission(payload.default_scope);
   return {
     project_path: last.project_path,
     project_name: last.project_name ?? projectNameFromPath(last.project_path),
-    access_mode: accessMode,
-    restrict_to_workspace: accessMode === "restricted",
+    access_mode: "restricted",
+    restrict_to_workspace: true,
+  };
+}
+
+function workspaceScopeWithDefaultPermission(scope: WorkspaceScopePayload): WorkspaceScopePayload {
+  return {
+    ...normalizeWorkspaceScope(scope),
+    access_mode: "restricted",
+    restrict_to_workspace: true,
   };
 }
 
@@ -460,7 +467,7 @@ function Shell({
         ...current,
         [_chatId]: next,
       }));
-      setDraftWorkspaceScope(next);
+      setDraftWorkspaceScope(workspaceScopeWithDefaultPermission(next));
       setWorkspaceError(null);
       void refreshWorkspaces();
     });

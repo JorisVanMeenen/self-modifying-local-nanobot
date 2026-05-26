@@ -71,7 +71,7 @@ def test_workspace_payload_is_config_data_dir_scoped(tmp_path, monkeypatch) -> N
     )
 
     assert payload["default_scope"]["project_path"] == str(default.resolve())
-    assert payload["default_scope"]["access_mode"] == "full"
+    assert payload["default_scope"]["access_mode"] == "restricted"
     assert payload["last_scope"]["project_path"] == str(project.resolve())
     assert payload["last_scope"]["access_mode"] == "restricted"
     assert payload["controls"]["can_change_project"] is True

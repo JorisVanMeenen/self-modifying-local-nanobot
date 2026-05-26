@@ -35,7 +35,7 @@ from nanobot.agent.workspace_scope import (
     WORKSPACE_SCOPE_METADATA_KEY,
     WorkspaceScope,
     WorkspaceScopeError,
-    default_workspace_scope,
+    default_permission_workspace_scope,
     validate_workspace_scope_payload,
     workspace_scope_from_metadata,
 )
@@ -932,10 +932,7 @@ class WebSocketChannel(BaseChannel):
         return _http_json_response({"sessions": cleaned})
 
     def _default_workspace_scope(self) -> WorkspaceScope:
-        return default_workspace_scope(
-            self._workspace_path,
-            self._default_restrict_to_workspace,
-        )
+        return default_permission_workspace_scope(self._workspace_path)
 
     def _workspace_scope_for_session_key(self, session_key: str) -> WorkspaceScope:
         if self._session_manager is None:
@@ -945,7 +942,7 @@ class WebSocketChannel(BaseChannel):
         return workspace_scope_from_metadata(
             metadata,
             default_workspace=self._workspace_path,
-            default_restrict_to_workspace=self._default_restrict_to_workspace,
+            default_restrict_to_workspace=True,
         )
 
     def _handle_workspaces(self, connection: Any, request: WsRequest) -> Response:
@@ -1783,14 +1780,18 @@ class WebSocketChannel(BaseChannel):
         chat_id: str | None = None,
     ) -> WorkspaceScope | None:
         raw = envelope.get(WORKSPACE_SCOPE_METADATA_KEY)
-        if raw is None and session_key:
-            scope = self._workspace_scope_for_session_key(session_key)
+        if raw is None:
+            scope = (
+                self._workspace_scope_for_session_key(session_key)
+                if session_key
+                else self._default_workspace_scope()
+            )
         else:
             try:
                 scope = validate_workspace_scope_payload(
                     raw,
                     default_workspace=self._workspace_path,
-                    default_restrict_to_workspace=self._default_restrict_to_workspace,
+                    default_restrict_to_workspace=True,
                 )
             except WorkspaceScopeError as exc:
                 await self._send_event(

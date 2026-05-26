@@ -1219,7 +1219,7 @@ export function ThreadComposer({
             isHero ? "px-4 pb-4" : "px-3 pb-2",
           )}
         >
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
             <input
               ref={fileInputRef}
               type="file"
@@ -1244,6 +1244,15 @@ export function ThreadComposer({
             >
               <Plus className={cn(isHero ? "h-5 w-5" : "h-4 w-4")} />
             </Button>
+            {workspaceScope ? (
+              <WorkspaceAccessMenu
+                scope={workspaceScope}
+                disabled={disabled || workspaceScopeDisabled}
+                canUseFullAccess={workspaceControls?.can_use_full_access !== false}
+                isHero={isHero}
+                onChange={onWorkspaceScopeChange}
+              />
+            ) : null}
             <div ref={aspectControlRef} className="relative flex items-center gap-1">
               <Button
                 type="button"
@@ -1257,7 +1266,7 @@ export function ThreadComposer({
                   textareaRef.current?.focus();
                 }}
                 className={cn(
-                  "rounded-full border border-border/55 px-2.5 font-medium shadow-[0_2px_8px_rgba(15,23,42,0.04)]",
+                  "max-w-[11rem] rounded-full border border-border/55 px-2.5 font-medium shadow-[0_2px_8px_rgba(15,23,42,0.04)]",
                   "h-9 text-[12px]",
                   imageMode
                     ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/12"
@@ -1265,7 +1274,7 @@ export function ThreadComposer({
                 )}
               >
                 <ImageIcon className={cn("mr-1.5", isHero ? "h-4 w-4" : "h-3.5 w-3.5")} />
-                {t("thread.composer.imageMode.label")}
+                <span className="truncate">{t("thread.composer.imageMode.label")}</span>
               </Button>
               {imageMode ? (
                 <Button
@@ -1297,6 +1306,13 @@ export function ThreadComposer({
                 />
               ) : null}
             </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {!isHero ? (
+              <span className="hidden select-none text-[10.5px] text-muted-foreground/60 sm:inline">
+                {t("thread.composer.sendHint")}
+              </span>
+            ) : null}
             {modelLabel ? (
               <ComposerModelBadge
                 label={modelLabel}
@@ -1305,47 +1321,32 @@ export function ThreadComposer({
                 isHero={isHero}
               />
             ) : null}
-            {workspaceScope ? (
-              <WorkspaceAccessMenu
-                scope={workspaceScope}
-                disabled={disabled || workspaceScopeDisabled}
-                canUseFullAccess={workspaceControls?.can_use_full_access !== false}
-                isHero={isHero}
-                onChange={onWorkspaceScopeChange}
-              />
-            ) : null}
-            {!isHero ? (
-              <span className="hidden select-none text-[10.5px] text-muted-foreground/60 sm:inline">
-                {t("thread.composer.sendHint")}
-              </span>
-            ) : null}
+            <Button
+              type={showStopButton ? "button" : "submit"}
+              size="icon"
+              disabled={showStopButton ? disabled : !canSend}
+              aria-label={showStopButton ? t("thread.composer.stop") : t("thread.composer.send")}
+              onClick={showStopButton ? onStop : undefined}
+              className={cn(
+                "rounded-full transition-transform",
+                showStopButton
+                  ? "border border-border/70 bg-card text-foreground/85 shadow-[0_3px_10px_rgba(15,23,42,0.08)] hover:bg-muted/65 hover:text-foreground disabled:text-muted-foreground/50"
+                  : isHero
+                    ? "border border-foreground bg-foreground text-background shadow-[0_4px_12px_rgba(15,23,42,0.20)] hover:bg-foreground/90 disabled:border-foreground/35 disabled:bg-foreground/35 disabled:text-background/80"
+                    : "border border-foreground bg-foreground text-background shadow-[0_3px_10px_rgba(15,23,42,0.18)] hover:bg-foreground/90 disabled:border-foreground/35 disabled:bg-foreground/35 disabled:text-background/80",
+                "h-9 w-9",
+                (canSend || showStopButton) && "hover:scale-[1.03] active:scale-95",
+              )}
+            >
+              {showStopButton ? (
+                <Square className={cn("fill-current stroke-current", isHero ? "h-3 w-3" : "h-2.5 w-2.5")} />
+              ) : isStreaming ? (
+                <Loader2 className={cn(isHero ? "h-4.5 w-4.5" : "h-4 w-4", "animate-spin")} />
+              ) : (
+                <ArrowUp className={cn(isHero ? "h-4.5 w-4.5" : "h-4 w-4")} />
+              )}
+            </Button>
           </div>
-          <span className={cn(isHero ? "hidden" : "sm:hidden")} aria-hidden />
-          <Button
-            type={showStopButton ? "button" : "submit"}
-            size="icon"
-            disabled={showStopButton ? disabled : !canSend}
-            aria-label={showStopButton ? t("thread.composer.stop") : t("thread.composer.send")}
-            onClick={showStopButton ? onStop : undefined}
-            className={cn(
-              "rounded-full transition-transform",
-              showStopButton
-                ? "border border-border/70 bg-card text-foreground/85 shadow-[0_3px_10px_rgba(15,23,42,0.08)] hover:bg-muted/65 hover:text-foreground disabled:text-muted-foreground/50"
-                : isHero
-                  ? "border border-foreground bg-foreground text-background shadow-[0_4px_12px_rgba(15,23,42,0.20)] hover:bg-foreground/90 disabled:border-foreground/35 disabled:bg-foreground/35 disabled:text-background/80"
-                  : "border border-foreground bg-foreground text-background shadow-[0_3px_10px_rgba(15,23,42,0.18)] hover:bg-foreground/90 disabled:border-foreground/35 disabled:bg-foreground/35 disabled:text-background/80",
-              "h-9 w-9",
-              (canSend || showStopButton) && "hover:scale-[1.03] active:scale-95",
-            )}
-          >
-            {showStopButton ? (
-              <Square className={cn("fill-current stroke-current", isHero ? "h-3 w-3" : "h-2.5 w-2.5")} />
-            ) : isStreaming ? (
-              <Loader2 className={cn(isHero ? "h-4.5 w-4.5" : "h-4 w-4", "animate-spin")} />
-            ) : (
-              <ArrowUp className={cn(isHero ? "h-4.5 w-4.5" : "h-4 w-4")} />
-            )}
-          </Button>
         </div>
       </div>
     </form>

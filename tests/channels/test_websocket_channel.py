@@ -1928,6 +1928,8 @@ async def test_multiplex_new_chat_roundtrip(bus: MagicMock) -> None:
                 OutboundMessage(channel="websocket", chat_id=new_chat, content="ok")
             )
             reply = json.loads(await client.recv())
+            if reply["event"] == "session_updated":
+                reply = json.loads(await client.recv())
             assert reply["event"] == "message"
             assert reply["chat_id"] == new_chat
             assert reply["text"] == "ok"

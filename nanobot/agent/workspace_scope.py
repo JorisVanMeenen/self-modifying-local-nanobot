@@ -90,6 +90,11 @@ def default_workspace_scope(
     )
 
 
+def default_permission_workspace_scope(workspace: str | Path) -> WorkspaceScope:
+    """Safe WebUI default before a user explicitly asks for full access."""
+    return build_workspace_scope(workspace, "restricted")
+
+
 def validate_workspace_scope_payload(
     raw: Any,
     *,
