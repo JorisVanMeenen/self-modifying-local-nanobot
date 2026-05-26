@@ -65,8 +65,6 @@ interface SidebarProps {
   archivedCount?: number;
   workspaceScope?: WorkspaceScopePayload | null;
   defaultWorkspacePath?: string | null;
-  workspaceScopeDisabled?: boolean;
-  onOpenWorkspacePicker?: () => void;
 }
 
 export function Sidebar(props: SidebarProps) {
@@ -131,8 +129,6 @@ export function Sidebar(props: SidebarProps) {
           scope={props.workspaceScope}
           defaultWorkspacePath={props.defaultWorkspacePath}
           collapsed={collapsed}
-          disabled={props.workspaceScopeDisabled}
-          onClick={props.onOpenWorkspacePicker}
         />
       ) : null}
 
@@ -289,14 +285,10 @@ function SidebarProjectButton({
   scope,
   defaultWorkspacePath,
   collapsed,
-  disabled,
-  onClick,
 }: {
   scope: WorkspaceScopePayload;
   defaultWorkspacePath?: string | null;
   collapsed: boolean;
-  disabled?: boolean;
-  onClick?: () => void;
 }) {
   const { t } = useTranslation();
   const isFull = scope.access_mode === "full";
@@ -308,15 +300,10 @@ function SidebarProjectButton({
 
   return (
     <div className={cn("px-2 pb-2", collapsed && "flex w-14 justify-center px-0")}>
-      <Button
-        type="button"
-        variant="ghost"
-        disabled={disabled || !onClick}
-        aria-label={t("sidebar.project.change")}
+      <div
         title={collapsed ? label : undefined}
-        onClick={() => onClick?.()}
         className={cn(
-          "min-w-0 overflow-hidden border border-transparent text-left text-sidebar-foreground/85 hover:bg-sidebar-accent/75 hover:text-sidebar-foreground",
+          "flex min-w-0 items-center overflow-hidden border border-transparent text-left text-sidebar-foreground/85",
           "transition-[width,height,padding,border-radius,color,background-color] duration-300 ease-out",
           collapsed
             ? "h-9 w-9 rounded-xl px-0"
@@ -364,7 +351,7 @@ function SidebarProjectButton({
             </span>
           </>
         ) : null}
-      </Button>
+      </div>
     </div>
   );
 }

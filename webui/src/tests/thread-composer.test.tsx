@@ -213,6 +213,55 @@ describe("ThreadComposer", () => {
     );
   });
 
+  it("keeps project selection as a compact composer dropdown", async () => {
+    const onWorkspaceScopeChange = vi.fn();
+    const defaultScope = {
+      project_path: "/Users/test/.nanobot/workspace",
+      project_name: "workspace",
+      access_mode: "restricted" as const,
+      restrict_to_workspace: true,
+    };
+    render(
+      <ThreadComposer
+        onSend={vi.fn()}
+        placeholder="Ask anything..."
+        variant="hero"
+        workspaceScope={{
+          ...defaultScope,
+          access_mode: "full",
+          restrict_to_workspace: false,
+        }}
+        workspaceDefaultScope={defaultScope}
+        workspaceControls={{ can_change_project: true, can_use_full_access: true }}
+        onWorkspaceScopeChange={onWorkspaceScopeChange}
+      />,
+    );
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Choose project" }));
+
+    expect(await screen.findByRole("menuitem", { name: /Default workspace/ })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    const input = screen.getByLabelText("Paste path");
+    fireEvent.change(input, { target: { value: "relative/project" } });
+    fireEvent.click(screen.getByRole("button", { name: "Use Path" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Enter an absolute folder path on this machine.",
+    );
+    expect(onWorkspaceScopeChange).not.toHaveBeenCalled();
+
+    fireEvent.change(input, { target: { value: "/Users/test/project-alpha" } });
+    fireEvent.click(screen.getByRole("button", { name: "Use Path" }));
+
+    expect(onWorkspaceScopeChange).toHaveBeenCalledWith(expect.objectContaining({
+      project_path: "/Users/test/project-alpha",
+      project_name: "project-alpha",
+      access_mode: "full",
+      restrict_to_workspace: false,
+    }));
+  });
+
   it("shows turn run timer when runStartedAt is set", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date((1_000 + 125) * 1000));

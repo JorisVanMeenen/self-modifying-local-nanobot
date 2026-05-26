@@ -6,7 +6,6 @@ import { Sidebar } from "@/components/Sidebar";
 import { SessionSearchDialog } from "@/components/SessionSearchDialog";
 import { SettingsView, type SettingsSectionKey } from "@/components/settings/SettingsView";
 import { ThreadShell } from "@/components/thread/ThreadShell";
-import { WorkspaceProjectDialog } from "@/components/WorkspaceProjectDialog";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
 import { useSessions } from "@/hooks/useSessions";
@@ -364,7 +363,6 @@ function Shell({
   const [runningChatIds, setRunningChatIds] = useState<Set<string>>(() => new Set());
   const [completedChatIds, setCompletedChatIds] = useState<Set<string>>(readCompletedRunChatIds);
   const [workspaces, setWorkspaces] = useState<WorkspacesPayload | null>(null);
-  const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [draftWorkspaceScope, setDraftWorkspaceScope] =
     useState<WorkspaceScopePayload | null>(null);
@@ -457,7 +455,6 @@ function Shell({
     return client.onError((error) => {
       if (error.kind !== "workspace_scope_rejected") return;
       setWorkspaceError(t("errors.workspaceScopeRejected.body"));
-      setWorkspacePickerOpen(true);
       void refreshWorkspaces();
     });
   }, [client, refreshWorkspaces, t]);
@@ -549,7 +546,6 @@ function Shell({
       console.error("Failed to create chat", e);
       if (e instanceof Error && e.message.startsWith("workspace_scope_rejected:")) {
         setWorkspaceError(t("errors.workspaceScopeRejected.body"));
-        setWorkspacePickerOpen(true);
       }
       return null;
     }
@@ -558,6 +554,7 @@ function Shell({
   const onNewChat = useCallback(() => {
     setActiveKey(null);
     setDraftWorkspaceScope(null);
+    setWorkspaceError(null);
     setView("chat");
     setMobileSidebarOpen(false);
   }, []);
@@ -579,6 +576,7 @@ function Shell({
       } else {
         setDraftWorkspaceScope(null);
       }
+      setWorkspaceError(null);
       setActiveKey(key);
       setView("chat");
       setMobileSidebarOpen(false);
@@ -876,8 +874,6 @@ function Shell({
     archivedCount: sidebarState.archived_keys.length,
     workspaceScope: activeWorkspaceScope,
     defaultWorkspacePath: workspaces?.default_scope.project_path ?? null,
-    workspaceScopeDisabled: activeChatRunning,
-    onOpenWorkspacePicker: () => setWorkspacePickerOpen(true),
   };
   const showMainSidebar = view !== "settings";
 
@@ -939,17 +935,6 @@ function Shell({
           titleOverrides={sidebarState.title_overrides}
           onSelect={onSelectSearchResult}
         />
-        <WorkspaceProjectDialog
-          open={workspacePickerOpen}
-          onOpenChange={setWorkspacePickerOpen}
-          scope={activeChatId ? activeWorkspaceScope : draftWorkspaceScope}
-          defaultScope={workspaces?.default_scope ?? null}
-          recentProjects={workspaces?.recent_projects ?? []}
-          disabled={activeChatRunning}
-          serverError={workspaceError}
-          onApply={applyWorkspaceScope}
-        />
-
         <main className="relative flex h-full min-w-0 flex-1 flex-col">
           <div
             className={cn(
@@ -971,8 +956,8 @@ function Shell({
               workspaceDefaultScope={workspaces?.default_scope ?? null}
               workspaceControls={workspaces?.controls ?? null}
               workspaceScopeDisabled={activeChatRunning}
+              workspaceError={workspaceError}
               onWorkspaceScopeChange={applyWorkspaceScope}
-              onWorkspaceProjectClick={() => setWorkspacePickerOpen(true)}
             />
           </div>
           {view !== "chat" && (
