@@ -168,7 +168,8 @@ function shortPath(path: string): string {
 
 function isAbsolutePath(path: string): boolean {
   const trimmed = path.trim();
-  return trimmed.startsWith("/") || /^[A-Za-z]:[\\/]/.test(trimmed);
+  return trimmed === "~" || trimmed.startsWith("~/") || trimmed.startsWith("~\\")
+    || trimmed.startsWith("/") || /^[A-Za-z]:[\\/]/.test(trimmed);
 }
 
 function selectedProjectScope(

@@ -269,6 +269,54 @@ async def test_webui_message_scope_inherits_persisted_session_scope(
 
 
 @pytest.mark.asyncio
+async def test_webui_scope_expands_home_project_path(
+    bus: MagicMock,
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    default_workspace = tmp_path / "default"
+    home = tmp_path / "home"
+    project = home / "Desktop" / "Photos"
+    default_workspace.mkdir()
+    project.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    channel = WebSocketChannel(
+        {"enabled": True, "allowFrom": ["*"], "host": "127.0.0.1"},
+        bus,
+        session_manager=SessionManager(tmp_path / "sessions"),
+        workspace_path=default_workspace,
+        restrict_to_workspace=True,
+    )
+    conn = AsyncMock()
+    conn.remote_address = ("127.0.0.1", 50123)
+
+    await channel._dispatch_envelope(
+        conn,
+        "webui-client",
+        {
+            "type": "set_workspace_scope",
+            "chat_id": "chat-scope",
+            "workspace_scope": {
+                "project_path": "~/Desktop/Photos",
+                "access_mode": "restricted",
+            },
+        },
+    )
+    await channel._dispatch_envelope(
+        conn,
+        "webui-client",
+        {"type": "message", "chat_id": "chat-scope", "content": "hello", "webui": True},
+    )
+
+    msg = bus.publish_inbound.await_args.args[0]
+    assert msg.metadata["workspace_scope"] == {
+        "project_path": str(project.resolve()),
+        "access_mode": "restricted",
+    }
+
+
+@pytest.mark.asyncio
 async def test_webui_scope_rejects_missing_project_path(bus: MagicMock, tmp_path) -> None:
     default_workspace = tmp_path / "default"
     default_workspace.mkdir()

@@ -261,6 +261,18 @@ describe("ThreadComposer", () => {
       access_mode: "full",
       restrict_to_workspace: false,
     }));
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Choose project" }));
+    const reopenedInput = await screen.findByLabelText("Paste path");
+    fireEvent.change(reopenedInput, { target: { value: "~/Desktop/Photos" } });
+    fireEvent.click(screen.getByRole("button", { name: "Use Path" }));
+
+    expect(onWorkspaceScopeChange).toHaveBeenLastCalledWith(expect.objectContaining({
+      project_path: "~/Desktop/Photos",
+      project_name: "Photos",
+      access_mode: "full",
+      restrict_to_workspace: false,
+    }));
   });
 
   it("shows turn run timer when runStartedAt is set", () => {

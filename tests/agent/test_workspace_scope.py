@@ -58,6 +58,26 @@ def test_workspace_scope_rejects_invalid_project_path(tmp_path: Path) -> None:
         )
 
 
+def test_workspace_scope_accepts_home_relative_project_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / "home"
+    project = home / "Desktop" / "Photos"
+    project.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+
+    scope = validate_workspace_scope_payload(
+        {"project_path": "~/Desktop/Photos", "access_mode": "restricted"},
+        default_workspace=tmp_path,
+        default_restrict_to_workspace=False,
+    )
+
+    assert scope.project_path == project.resolve()
+    assert scope.metadata()["project_path"] == str(project.resolve())
+
+
 def test_workspace_scope_metadata_falls_back_for_stale_session(tmp_path: Path) -> None:
     scope = workspace_scope_from_metadata(
         {
