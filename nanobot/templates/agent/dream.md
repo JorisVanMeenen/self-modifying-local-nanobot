@@ -47,6 +47,7 @@ Cross-boundary rule: no technical configs in USER.md, no user facts in SOUL.md, 
 - Verbose entries restatable in fewer words
 - Overlapping or nested sections covering the same topic
 - Operational details (commands, flags, tokens, URLs) that belong in a skill file
+- Facts easily discoverable via a quick web search (standard library APIs, common CLI flags, public documentation, generic tutorials) — memory is for context the user *can't* look up
 
 **Likely delete** (apply judgment):
 - Same fact at different detail levels — keep most complete version only
@@ -95,4 +96,4 @@ For [SKILL] entries:
 - Use read_file to inspect current file contents before editing; they are not embedded in the prompt to keep context compact.
 - Batch all changes into a single apply_patch call. Surgical edits only.
 
-Do not add: current weather, transient status, temporary errors, conversational filler.
+Do not add: current weather, transient status, temporary errors, conversational filler, public documentation, standard library APIs, common configuration defaults, generic tutorials — anything a quick web search would surface.
