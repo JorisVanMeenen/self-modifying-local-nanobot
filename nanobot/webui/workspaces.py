@@ -10,10 +10,7 @@ from typing import Any
 
 from loguru import logger
 
-from nanobot.agent.workspace_scope import (
-    WorkspaceScope,
-    default_permission_workspace_scope,
-)
+from nanobot.agent.workspace_scope import WorkspaceScope, default_workspace_scope
 from nanobot.config.paths import get_webui_dir
 
 WEBUI_WORKSPACE_STATE_SCHEMA_VERSION = 1
@@ -159,7 +156,7 @@ def workspaces_payload(
     default_restrict_to_workspace: bool,
     controls_available: bool,
 ) -> dict[str, Any]:
-    default_scope = default_permission_workspace_scope(default_workspace)
+    default_scope = default_workspace_scope(default_workspace, default_restrict_to_workspace)
     state = read_webui_workspace_state()
     last_scope = state.get("last_scope") if controls_available else None
     recent_projects = state.get("recent_projects", []) if controls_available else []
