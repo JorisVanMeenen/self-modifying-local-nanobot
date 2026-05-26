@@ -643,6 +643,8 @@
       "workspace": {
         "accessAria": "Workspace access mode",
         "accessLabel": "Workspace access",
+        "projectAria": "プロジェクトを選択",
+        "projectPlaceholder": "プロジェクトを選択",
         "default": "Default Permission",
         "restricted": "Restricted",
         "restrictedDescription": "Read and edit inside the selected project only.",

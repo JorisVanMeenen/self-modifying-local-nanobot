@@ -151,18 +151,6 @@ function writeCompletedRunChatIds(chatIds: Set<string>): void {
   }
 }
 
-function workspaceScopeFromLast(payload: WorkspacesPayload): WorkspaceScopePayload {
-  const last = payload.last_scope;
-  if (!last) return payload.default_scope;
-  const accessMode = last.access_mode;
-  return {
-    project_path: last.project_path,
-    project_name: last.project_name ?? projectNameFromPath(last.project_path),
-    access_mode: accessMode,
-    restrict_to_workspace: accessMode === "restricted",
-  };
-}
-
 function normalizeWorkspaceScope(scope: WorkspaceScopePayload): WorkspaceScopePayload {
   const accessMode = scope.access_mode === "restricted" ? "restricted" : "full";
   return {
@@ -427,7 +415,6 @@ function Shell({
     try {
       const payload = await fetchWorkspaces(token);
       setWorkspaces(payload);
-      setDraftWorkspaceScope((current) => current ?? workspaceScopeFromLast(payload));
     } catch {
       setWorkspaces(null);
     }
@@ -570,6 +557,7 @@ function Shell({
 
   const onNewChat = useCallback(() => {
     setActiveKey(null);
+    setDraftWorkspaceScope(null);
     setView("chat");
     setMobileSidebarOpen(false);
   }, []);
@@ -952,7 +940,7 @@ function Shell({
         <WorkspaceProjectDialog
           open={workspacePickerOpen}
           onOpenChange={setWorkspacePickerOpen}
-          scope={activeWorkspaceScope}
+          scope={activeChatId ? activeWorkspaceScope : draftWorkspaceScope}
           defaultScope={workspaces?.default_scope ?? null}
           recentProjects={workspaces?.recent_projects ?? []}
           canUseFullAccess={workspaces?.controls.can_use_full_access !== false}
@@ -979,9 +967,11 @@ function Shell({
               onToggleTheme={toggle}
               hideSidebarToggleOnDesktop
               workspaceScope={activeWorkspaceScope}
+              workspaceDefaultScope={workspaces?.default_scope ?? null}
               workspaceControls={workspaces?.controls ?? null}
               workspaceScopeDisabled={activeChatRunning}
               onWorkspaceScopeChange={applyWorkspaceScope}
+              onWorkspaceProjectClick={() => setWorkspacePickerOpen(true)}
             />
           </div>
           {view !== "chat" && (

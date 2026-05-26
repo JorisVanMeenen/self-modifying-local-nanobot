@@ -643,6 +643,8 @@
       "workspace": {
         "accessAria": "Workspace access mode",
         "accessLabel": "Workspace access",
+        "projectAria": "프로젝트 선택",
+        "projectPlaceholder": "프로젝트 선택",
         "default": "Default Permission",
         "restricted": "Restricted",
         "restrictedDescription": "Read and edit inside the selected project only.",

@@ -75,9 +75,11 @@ interface ThreadShellProps {
   onToggleTheme?: () => void;
   hideSidebarToggleOnDesktop?: boolean;
   workspaceScope?: WorkspaceScopePayload | null;
+  workspaceDefaultScope?: WorkspaceScopePayload | null;
   workspaceControls?: WorkspacesPayload["controls"] | null;
   workspaceScopeDisabled?: boolean;
   onWorkspaceScopeChange?: (scope: WorkspaceScopePayload) => void;
+  onWorkspaceProjectClick?: () => void;
 }
 
 function toModelBadgeLabel(modelName: string | null): string | null {
@@ -157,9 +159,11 @@ export function ThreadShell({
   onToggleTheme = () => {},
   hideSidebarToggleOnDesktop = false,
   workspaceScope = null,
+  workspaceDefaultScope = null,
   workspaceControls = null,
   workspaceScopeDisabled = false,
   onWorkspaceScopeChange,
+  onWorkspaceProjectClick,
 }: ThreadShellProps) {
   const { t } = useTranslation();
   const chatId = session?.chatId ?? null;
@@ -551,9 +555,11 @@ export function ThreadShell({
           runStartedAt={runStartedAt}
           goalState={goalState}
           workspaceScope={workspaceScope}
+          workspaceDefaultScope={workspaceDefaultScope}
           workspaceControls={workspaceControls}
           workspaceScopeDisabled={workspaceScopeDisabled}
           onWorkspaceScopeChange={onWorkspaceScopeChange}
+          onWorkspaceProjectClick={onWorkspaceProjectClick}
         />
       ) : (
         <ThreadComposer
@@ -577,9 +583,11 @@ export function ThreadShell({
           runStartedAt={runStartedAt}
           goalState={goalState}
           workspaceScope={workspaceScope}
+          workspaceDefaultScope={workspaceDefaultScope}
           workspaceControls={workspaceControls}
           workspaceScopeDisabled={workspaceScopeDisabled}
           onWorkspaceScopeChange={onWorkspaceScopeChange}
+          onWorkspaceProjectClick={onWorkspaceProjectClick}
         />
       )}
       {showHeroComposer ? quickActions : null}

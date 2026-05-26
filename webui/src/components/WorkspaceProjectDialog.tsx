@@ -39,6 +39,7 @@ export function WorkspaceProjectDialog({
   onApply,
 }: WorkspaceProjectDialogProps) {
   const { t } = useTranslation();
+  const hasExplicitScope = scope !== null;
   const current = scope ?? defaultScope;
   const [manualPath, setManualPath] = useState(current?.project_path ?? "");
   const [error, setError] = useState<string | null>(null);
@@ -106,7 +107,7 @@ export function WorkspaceProjectDialog({
             </p>
             <div className="overflow-hidden rounded-[18px] border border-border/55 bg-background/70">
               {projects.map((project) => {
-                const selected = current?.project_path === project.project_path;
+                const selected = hasExplicitScope && current?.project_path === project.project_path;
                 return (
                   <button
                     key={`${project.kind}:${project.project_path}`}

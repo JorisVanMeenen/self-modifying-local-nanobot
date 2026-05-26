@@ -28,6 +28,7 @@ import {
   ChevronDown,
   ChevronUp,
   CircleHelp,
+  Folder,
   Hand,
   History,
   ImageIcon,
@@ -108,9 +109,11 @@ interface ThreadComposerProps {
   /** Sustained objective for this chat (WebSocket ``goal_state``). */
   goalState?: GoalStateWsPayload;
   workspaceScope?: WorkspaceScopePayload | null;
+  workspaceDefaultScope?: WorkspaceScopePayload | null;
   workspaceControls?: WorkspacesPayload["controls"] | null;
   workspaceScopeDisabled?: boolean;
   onWorkspaceScopeChange?: (scope: WorkspaceScopePayload) => void;
+  onWorkspaceProjectClick?: () => void;
 }
 
 const COMMAND_ICONS: Record<string, LucideIcon> = {
@@ -148,6 +151,19 @@ function scopeWithAccessMode(
     access_mode: accessMode,
     restrict_to_workspace: accessMode === "restricted",
   };
+}
+
+function projectNameFromPath(path: string): string {
+  const normalized = path.replace(/\\/g, "/").replace(/\/+$/, "");
+  return normalized.split("/").filter(Boolean).pop() || path;
+}
+
+function selectedProjectScope(
+  scope: WorkspaceScopePayload | null,
+  defaultScope: WorkspaceScopePayload | null,
+): WorkspaceScopePayload | null {
+  if (!scope || !defaultScope) return null;
+  return scope.project_path === defaultScope.project_path ? null : scope;
 }
 
 interface SlashPaletteLayout {
@@ -504,9 +520,11 @@ export function ThreadComposer({
   runStartedAt = null,
   goalState,
   workspaceScope = null,
+  workspaceDefaultScope = null,
   workspaceControls = null,
   workspaceScopeDisabled = false,
   onWorkspaceScopeChange,
+  onWorkspaceProjectClick,
 }: ThreadComposerProps) {
   const { t } = useTranslation();
   const [value, setValue] = useState("");
@@ -526,6 +544,11 @@ export function ThreadComposer({
   const aspectControlRef = useRef<HTMLDivElement>(null);
   const chipRefs = useRef(new Map<string, HTMLButtonElement>());
   const isHero = variant === "hero";
+  const currentProjectScope = selectedProjectScope(workspaceScope, workspaceDefaultScope);
+  const projectLabel = currentProjectScope
+    ? currentProjectScope.project_name || projectNameFromPath(currentProjectScope.project_path)
+    : t("thread.composer.workspace.projectPlaceholder");
+  const showProjectPicker = isHero && !!onWorkspaceProjectClick && workspaceControls?.can_change_project !== false;
   const imageMode = controlledImageMode ?? uncontrolledImageMode;
   const setImageMode = useCallback(
     (enabled: boolean) => {
@@ -1349,6 +1372,28 @@ export function ThreadComposer({
           </div>
         </div>
       </div>
+      {showProjectPicker ? (
+        <div className="mx-auto mt-2 flex w-full max-w-[58rem] justify-start px-1">
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={disabled || workspaceScopeDisabled}
+            aria-label={t("thread.composer.workspace.projectAria")}
+            onClick={onWorkspaceProjectClick}
+            className={cn(
+              "h-9 max-w-[14rem] rounded-full border px-3 text-[12.5px] font-semibold",
+              "border-border/45 bg-card/80 text-muted-foreground shadow-[0_2px_8px_rgba(15,23,42,0.035)]",
+              "hover:bg-card hover:text-foreground",
+              currentProjectScope &&
+                "border-primary/25 bg-primary/8 text-foreground hover:bg-primary/10",
+            )}
+          >
+            <Folder className={cn("mr-1.5 h-3.5 w-3.5 shrink-0", currentProjectScope && "text-primary")} />
+            <span className="truncate">{projectLabel}</span>
+            <ChevronDown className="ml-1.5 h-3 w-3 shrink-0" />
+          </Button>
+        </div>
+      ) : null}
     </form>
   );
 }

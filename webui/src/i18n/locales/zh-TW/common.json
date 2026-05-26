@@ -643,6 +643,8 @@
       "workspace": {
         "accessAria": "工作區存取權限",
         "accessLabel": "工作區權限",
+        "projectAria": "選擇專案",
+        "projectPlaceholder": "選擇專案",
         "default": "預設權限",
         "restricted": "受限",
         "restrictedDescription": "只允許讀取和編輯所選專案目錄。",
