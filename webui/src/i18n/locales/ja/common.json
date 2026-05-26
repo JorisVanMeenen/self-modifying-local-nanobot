@@ -410,6 +410,8 @@
     "loading": "読み込み中…",
     "noSessions": "まだセッションがありません。",
     "showMore": "さらに {{count}} 件表示",
+    "showAll": "すべて表示",
+    "showLess": "折りたたむ",
     "actions": "「{{title}}」のチャット操作",
     "activity": {
       "running": "Agent running",

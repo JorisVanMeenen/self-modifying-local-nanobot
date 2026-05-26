@@ -198,4 +198,51 @@ describe("ChatList", () => {
 
     expect(screen.getAllByLabelText("Agent finished")).toHaveLength(1);
   });
+
+  it("folds long default workspace chats and can show all", () => {
+    const sessions = Array.from({ length: 10 }, (_, index) =>
+      session({
+        chatId: `chat-${index}`,
+        title: `Chat ${index}`,
+        updatedAt: `2026-05-21T10:${String(index).padStart(2, "0")}:00Z`,
+        workspaceScope: {
+          project_path: "/Users/me/.nanobot/workspace",
+          project_name: "workspace",
+          access_mode: "restricted",
+        },
+      }),
+    );
+    const onToggleGroup = vi.fn();
+    const baseProps = {
+      sessions,
+      activeKey: null,
+      onSelect: vi.fn(),
+      onRequestDelete: vi.fn(),
+      onTogglePin: vi.fn(),
+      onRequestRename: vi.fn(),
+      onToggleArchive: vi.fn(),
+      onToggleGroup,
+      defaultWorkspacePath: "/Users/me/.nanobot/workspace",
+    };
+
+    const { rerender } = render(<ChatList {...baseProps} />);
+    const chatsSection = screen.getByRole("region", { name: "Chats" });
+
+    expect(within(chatsSection).getByText("Chat 9")).toBeInTheDocument();
+    expect(within(chatsSection).getByText("Chat 2")).toBeInTheDocument();
+    expect(within(chatsSection).queryByText("Chat 1")).not.toBeInTheDocument();
+    fireEvent.click(within(chatsSection).getByRole("button", { name: "Show all" }));
+
+    expect(onToggleGroup).toHaveBeenCalledWith("workspace:chats");
+
+    rerender(
+      <ChatList
+        {...baseProps}
+        collapsedGroups={{ "workspace:chats": false }}
+      />,
+    );
+
+    expect(within(chatsSection).getByText("Chat 0")).toBeInTheDocument();
+    expect(within(chatsSection).getByRole("button", { name: "Show less" })).toBeInTheDocument();
+  });
 });

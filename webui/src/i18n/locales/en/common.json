@@ -410,6 +410,8 @@
     "loading": "Loading…",
     "noSessions": "No sessions yet.",
     "showMore": "Show {{count}} more",
+    "showAll": "Show all",
+    "showLess": "Show less",
     "actions": "Chat actions for {{title}}",
     "activity": {
       "running": "Agent running",

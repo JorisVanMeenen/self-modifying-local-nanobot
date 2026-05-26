@@ -410,6 +410,8 @@
     "loading": "Đang tải…",
     "noSessions": "Chưa có phiên nào.",
     "showMore": "Hiển thị thêm {{count}}",
+    "showAll": "Hiển thị tất cả",
+    "showLess": "Thu gọn",
     "actions": "Tác vụ cho cuộc trò chuyện {{title}}",
     "activity": {
       "running": "Agent running",

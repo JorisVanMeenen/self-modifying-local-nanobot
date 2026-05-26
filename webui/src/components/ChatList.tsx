@@ -30,6 +30,7 @@ import type { ChatSummary, SidebarDensity, SidebarSortMode } from "@/lib/types";
 
 const INITIAL_VISIBLE_SESSIONS = 160;
 const VISIBLE_SESSIONS_INCREMENT = 160;
+const COLLAPSED_CHATS_VISIBLE_COUNT = 8;
 
 interface ChatListProps {
   sessions: ChatSummary[];
@@ -199,6 +200,16 @@ export const ChatList = memo(function ChatList({
                 actionMenuPortalContainer={actionMenuPortalContainer}
                 updatedAt={showTimestamps ? group.updatedAt : null}
               />
+            ) : isFoldableChatsGroup(group) ? (
+              <ChatsGroupHeader
+                label={group.label}
+                folded={isFoldedChatsGroup(group, collapsedGroups)}
+                totalCount={group.sessions.length}
+                visibleCount={
+                  visibleSessionsForGroup(group, activeKey, collapsedGroups).length
+                }
+                onToggle={() => onToggleGroup?.(group.id)}
+              />
             ) : (
               <div className="px-2 pb-1 text-[12px] font-medium text-muted-foreground/65">
                 {group.label}
@@ -206,7 +217,7 @@ export const ChatList = memo(function ChatList({
             )}
             {group.kind === "project" && collapsedGroups[group.id] ? null : (
               <ul className="space-y-0.5">
-                {group.sessions.map((s) => {
+                {visibleSessionsForGroup(group, activeKey, collapsedGroups).map((s) => {
                   const active = s.key === activeKey;
                   const fallbackTitle = t("chat.fallbackTitle", {
                     id: s.chatId.slice(0, 6),
@@ -424,6 +435,40 @@ function ProjectGroupHeader({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+      ) : null}
+    </div>
+  );
+}
+
+function ChatsGroupHeader({
+  label,
+  folded,
+  totalCount,
+  visibleCount,
+  onToggle,
+}: {
+  label: string;
+  folded: boolean;
+  totalCount: number;
+  visibleCount: number;
+  onToggle: () => void;
+}) {
+  const { t } = useTranslation();
+  const expandable = totalCount > COLLAPSED_CHATS_VISIBLE_COUNT;
+
+  return (
+    <div className="flex min-w-0 items-center gap-2 px-2 pb-1 text-[12px] font-medium text-muted-foreground/65">
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {expandable ? (
+        <button
+          type="button"
+          onClick={onToggle}
+          className="shrink-0 rounded-full px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground/70 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
+        >
+          {folded
+            ? t("chat.showAll", { count: totalCount - visibleCount })
+            : t("chat.showLess")}
+        </button>
       ) : null}
     </div>
   );
@@ -720,6 +765,37 @@ function isCollapsedProject(
   collapsedGroups: Record<string, boolean>,
 ): boolean {
   return group.kind === "project" && Boolean(collapsedGroups[group.id]);
+}
+
+function isFoldableChatsGroup(group: SessionGroup): boolean {
+  return group.id === "workspace:chats" || group.id === "date:all";
+}
+
+function isFoldedChatsGroup(
+  group: SessionGroup,
+  collapsedGroups: Record<string, boolean>,
+): boolean {
+  return (
+    isFoldableChatsGroup(group)
+    && group.sessions.length > COLLAPSED_CHATS_VISIBLE_COUNT
+    && collapsedGroups[group.id] !== false
+  );
+}
+
+function visibleSessionsForGroup(
+  group: SessionGroup,
+  activeKey: string | null,
+  collapsedGroups: Record<string, boolean>,
+): ChatSummary[] {
+  if (!isFoldedChatsGroup(group, collapsedGroups)) {
+    return group.sessions;
+  }
+  const visible = group.sessions.slice(0, COLLAPSED_CHATS_VISIBLE_COUNT);
+  if (!activeKey || visible.some((session) => session.key === activeKey)) {
+    return visible;
+  }
+  const active = group.sessions.find((session) => session.key === activeKey);
+  return active ? [...visible, active] : visible;
 }
 
 function sortProjectSessions(
