@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import json
 import os
 import time
 from contextlib import AsyncExitStack, nullcontext, suppress
@@ -40,7 +41,6 @@ from nanobot.config.schema import AgentDefaults, ModelPresetConfig
 from nanobot.providers.base import LLMProvider
 from nanobot.providers.factory import ProviderSnapshot
 from nanobot.session.goal_state import (
-    GOAL_STATE_KEY,
     goal_state_runtime_lines,
     runner_wall_llm_timeout_s,
     sustained_goal_active,
@@ -320,6 +320,8 @@ class AgentLoop:
             store=self.context.memory,
             provider=provider,
             model=self.model,
+            sessions=self.sessions,
+            bus=self.bus,
         )
         self.model_presets: dict[str, ModelPresetConfig] = model_presets or {}
         self._active_preset: str | None = None
@@ -1080,13 +1082,6 @@ class AgentLoop:
                 if trigger_ch and trigger_ci:
                     session.metadata["_dream_trigger_channel"] = trigger_ch
                     session.metadata["_dream_trigger_chat_id"] = trigger_ci
-            if not sustained_goal_active(session.metadata):
-                session.metadata[GOAL_STATE_KEY] = {
-                    "status": "active",
-                    "objective": "Dream: consolidate unprocessed memory backlog into MEMORY.md, SOUL.md, USER.md",
-                    "started_at": datetime.now().isoformat(),
-                }
-                self.sessions.save(session)
             await self._process_dream_batch(session, msg)
             await self._dream_finalize_commit(session)
             return None
@@ -1167,7 +1162,12 @@ class AgentLoop:
         )
 
     async def _process_dream_batch(self, session: Session, msg: InboundMessage) -> None:
-        """Process the full Dream backlog in batches within a single invocation."""
+        """Process the full Dream backlog in a single invocation.
+
+        All unprocessed history entries are written to ``.dream_batch.jsonl`` so
+        the agent can read them on demand instead of receiving the full text in the
+        prompt. The file is cleaned up in ``_dream_finalize_commit``.
+        """
         from nanobot.agent.skills import BUILTIN_SKILLS_DIR
 
         # System prompt caching with mtime invalidation
@@ -1190,134 +1190,148 @@ class AgentLoop:
             session.metadata["_dream_system_prompt"] = cached_prompt
             session.metadata["_dream_system_prompt_mtime"] = current_mtime
 
-        while True:
-            last_cursor = self.dream.store.get_last_dream_cursor()
-            entries = self.dream.store.read_unprocessed_history(since_cursor=last_cursor)
-            if not entries:
-                return
+        last_cursor = self.dream.store.get_last_dream_cursor()
+        entries = self.dream.store.read_unprocessed_history(since_cursor=last_cursor)
+        if not entries:
+            return
 
-            batch = entries[: self.dream.max_batch_size]
+        logger.info(
+            "Dream: processing {} entries (cursor {}→{})",
+            len(entries), last_cursor, entries[-1]["cursor"],
+        )
+
+        # Write backlog to a temporary file so the agent can read it on demand
+        # instead of embedding the full text in the prompt.
+        # Strip [skip] lines before persisting to the batch file.
+        batch_file = self.dream.store.workspace / ".dream_batch.jsonl"
+        clean_entries = []
+        for e in entries:
+            clean = {**e, "content": _strip_skip_lines(e["content"])}
+            clean_entries.append(clean)
+        try:
+            batch_file.write_text(
+                "\n".join(json.dumps(e, ensure_ascii=False) for e in clean_entries),
+                encoding="utf-8",
+            )
+        except OSError as exc:
+            logger.warning("Dream failed to write batch file: {}", exc)
+            return
+
+        # File references — agent reads contents on demand instead of embedding
+        # the full text in the prompt, which avoids length errors as files grow.
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        raw_memory = self.dream.store.read_memory() or "(empty)"
+        raw_soul = self.dream.store.read_soul() or "(empty)"
+        raw_user = self.dream.store.read_user() or "(empty)"
+        memory_lines = raw_memory.splitlines()
+        soul_lines = raw_soul.splitlines()
+        user_lines = raw_user.splitlines()
+
+        file_context = (
+            f"## Current Date\n{current_date}\n\n"
+            f"## Memory Files (read before editing)\n"
+            f"- MEMORY.md: memory/MEMORY.md "
+            f"({len(raw_memory)} chars, {len(memory_lines)} lines)\n"
+            f"- SOUL.md: SOUL.md "
+            f"({len(raw_soul)} chars, {len(soul_lines)} lines)\n"
+            f"- USER.md: USER.md "
+            f"({len(raw_user)} chars, {len(user_lines)} lines)\n"
+            f"- History batch: .dream_batch.jsonl "
+            f"({len(entries)} entries, cursor {last_cursor + 1}→{entries[-1]['cursor']})"
+        )
+
+        existing_skills = self.dream._list_existing_skills()
+        skills_section = ""
+        if existing_skills:
+            skills_section = (
+                "\n\n## Existing Skills\n"
+                + "\n".join(f"- {s}" for s in existing_skills)
+            )
+
+        user_prompt = f"## Conversation History\nUse read_file to inspect .dream_batch.jsonl.\n\n{file_context}{skills_section}"
+        logger.info("Dream prompt: {} chars, ~{} tokens", len(user_prompt), _estimate_tokens(user_prompt))
+
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": cached_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+
+        t_start = time.perf_counter()
+        try:
+            result = await self.dream._runner.run(AgentRunSpec(
+                initial_messages=messages,
+                tools=self.dream._tools,
+                model=self.dream.model,
+                max_iterations=self.dream.max_iterations,
+                max_tool_result_chars=self.dream.max_tool_result_chars,
+                context_window_tokens=self.context_window_tokens,
+                reasoning_effort="none",
+                fail_on_tool_error=False,
+            ))
+            elapsed = time.perf_counter() - t_start
             logger.info(
-                "Dream: processing {}/{} entries (cursor {}→{})",
-                len(batch), len(entries), last_cursor, batch[-1]["cursor"],
+                "Dream run complete in {:.1f}s: stop_reason={}, tool_events={}",
+                elapsed, result.stop_reason, len(result.tool_events),
             )
+        except Exception:
+            elapsed = time.perf_counter() - t_start
+            logger.exception("Dream run failed after {:.1f}s", elapsed)
+            result = None
 
-            # Build history text — cap each entry and strip [skip] lines
-            history_text = "\n".join(
-                f"[{e['timestamp']}] "
-                f"{truncate_text_fn(_strip_skip_lines(e['content']), self.dream._HISTORY_ENTRY_PREVIEW_MAX_CHARS)}"
-                for e in batch
+        # Build changelog from tool events
+        changelog: list[str] = []
+        if result and result.tool_events:
+            for event in result.tool_events:
+                if event.get("status") == "ok":
+                    changelog.append(f"{event['name']}: {event['detail']}")
+
+        success = result is not None and result.stop_reason == "completed"
+        if success:
+            new_cursor = entries[-1]["cursor"]
+            self.dream.store.set_last_dream_cursor(new_cursor)
+            session.metadata.setdefault("_dream_changelog", []).extend(changelog)
+            self.sessions.save(session)
+            logger.info(
+                "Dream done: {} change(s), cursor advanced to {}",
+                len(changelog), new_cursor,
             )
-
-            # File references — agent reads contents on demand instead of embedding
-            # the full text in the prompt, which avoids length errors as files grow.
-            current_date = datetime.now().strftime("%Y-%m-%d")
-            raw_memory = self.dream.store.read_memory() or "(empty)"
-            raw_soul = self.dream.store.read_soul() or "(empty)"
-            raw_user = self.dream.store.read_user() or "(empty)"
-            memory_lines = raw_memory.splitlines()
-            soul_lines = raw_soul.splitlines()
-            user_lines = raw_user.splitlines()
-
-            file_context = (
-                f"## Current Date\n{current_date}\n\n"
-                f"## Memory Files (read before editing)\n"
-                f"- MEMORY.md: memory/MEMORY.md "
-                f"({len(raw_memory)} chars, {len(memory_lines)} lines)\n"
-                f"- SOUL.md: SOUL.md "
-                f"({len(raw_soul)} chars, {len(soul_lines)} lines)\n"
-                f"- USER.md: USER.md "
-                f"({len(raw_user)} chars, {len(user_lines)} lines)"
+        else:
+            reason = result.stop_reason if result else "exception"
+            logger.warning(
+                "Dream incomplete ({}): cursor NOT advanced, stopping",
+                reason,
             )
+            return
 
-            existing_skills = self.dream._list_existing_skills()
-            skills_section = ""
-            if existing_skills:
-                skills_section = (
-                    "\n\n## Existing Skills\n"
-                    + "\n".join(f"- {s}" for s in existing_skills)
-                )
+        self.dream.store.compact_history()
 
-            user_prompt = f"## Conversation History\n{history_text}\n\n{file_context}{skills_section}"
-            logger.info("Dream prompt: {} chars, ~{} tokens", len(user_prompt), _estimate_tokens(user_prompt))
-
-            messages: list[dict[str, Any]] = [
-                {"role": "system", "content": cached_prompt},
-                {"role": "user", "content": user_prompt},
-            ]
-
-            t_start = time.perf_counter()
-            try:
-                result = await self.dream._runner.run(AgentRunSpec(
-                    initial_messages=messages,
-                    tools=self.dream._tools,
-                    model=self.dream.model,
-                    max_iterations=self.dream.max_iterations,
-                    max_tool_result_chars=self.dream.max_tool_result_chars,
-                    context_window_tokens=self.context_window_tokens,
-                    reasoning_effort="none",
-                    fail_on_tool_error=False,
-                ))
-                elapsed = time.perf_counter() - t_start
-                logger.info(
-                    "Dream run complete in {:.1f}s: stop_reason={}, tool_events={}",
-                    elapsed, result.stop_reason, len(result.tool_events),
-                )
-            except Exception:
-                elapsed = time.perf_counter() - t_start
-                logger.exception("Dream run failed after {:.1f}s", elapsed)
-                result = None
-
-            # Build changelog from tool events
-            changelog: list[str] = []
-            if result and result.tool_events:
-                for event in result.tool_events:
-                    if event.get("status") == "ok":
-                        changelog.append(f"{event['name']}: {event['detail']}")
-
-            success = result is not None and result.stop_reason == "completed"
-            if success:
-                new_cursor = batch[-1]["cursor"]
-                self.dream.store.set_last_dream_cursor(new_cursor)
-                session.metadata.setdefault("_dream_changelog", []).extend(changelog)
-                self.sessions.save(session)
-                logger.info(
-                    "Dream done: {} change(s), cursor advanced to {}",
-                    len(changelog), new_cursor,
-                )
-            else:
-                reason = result.stop_reason if result else "exception"
-                logger.warning(
-                    "Dream incomplete ({}): cursor NOT advanced, stopping",
-                    reason,
-                )
-                return
-
-            self.dream.store.compact_history()
-
-            # Persist session record for debugging / visualization
-            record = {
-                "timestamp": datetime.now().isoformat(),
-                "batch": {
-                    "from_cursor": last_cursor,
-                    "to_cursor": batch[-1]["cursor"],
-                    "count": len(batch),
-                },
-                "prompt_chars": len(user_prompt),
-                "elapsed_seconds": elapsed,
-                "stop_reason": result.stop_reason,
-                "usage": result.usage,
-                "tool_events": result.tool_events,
-                "changelog": changelog,
-                "commit_sha": None,
-                "messages": result.messages,
-            }
-            self.dream.store.write_dream_session(record)
-            session.metadata["_dream_last_record"] = record
+        # Persist session record for debugging / visualization
+        record = {
+            "timestamp": datetime.now().isoformat(),
+            "batch": {
+                "from_cursor": last_cursor,
+                "to_cursor": entries[-1]["cursor"],
+                "count": len(entries),
+            },
+            "prompt_chars": len(user_prompt),
+            "elapsed_seconds": elapsed,
+            "stop_reason": result.stop_reason,
+            "usage": result.usage,
+            "tool_events": result.tool_events,
+            "changelog": changelog,
+            "commit_sha": None,
+            "messages": result.messages,
+        }
+        self.dream.store.write_dream_session(record)
+        session.metadata["_dream_last_record"] = record
 
 
     async def _dream_finalize_commit(self, session: Session) -> None:
         """Collapse accumulated changelog into a single git commit, clear caches, and complete the goal."""
+        # Clean up the temporary batch file used by _process_dream_batch
+        batch_file = self.dream.store.workspace / ".dream_batch.jsonl"
+        with suppress(OSError):
+            batch_file.unlink(missing_ok=True)
         changelog = session.metadata.pop("_dream_changelog", [])
         sha = None
         if changelog and self.dream.store.git.is_initialized():
@@ -1335,14 +1349,6 @@ class AgentLoop:
         session.metadata.pop("_dream_system_prompt_mtime", None)
         trigger_channel = session.metadata.pop("_dream_trigger_channel", None)
         trigger_chat_id = session.metadata.pop("_dream_trigger_chat_id", None)
-        goal = session.metadata.get(GOAL_STATE_KEY)
-        if isinstance(goal, dict) and goal.get("status") == "active":
-            session.metadata[GOAL_STATE_KEY] = {
-                **goal,
-                "status": "completed",
-                "completed_at": datetime.now().isoformat(),
-                "recap": f"Memory backlog consolidated ({len(changelog)} change(s)).",
-            }
         self.sessions.save(session)
         # Notify the user who triggered /dream
         if trigger_channel and trigger_chat_id:

@@ -73,8 +73,8 @@ def _make_run_result(
 
 
 class TestDreamAgentLoopIntegration:
-    async def test_completes_goal_state_after_full_backlog(self, loop, mock_runner, store):
-        """Goal should be completed after processing all backlog in internal loop."""
+    async def test_processes_full_backlog(self, loop, mock_runner, store):
+        """All backlog entries should be processed and cursor advanced."""
         for i in range(6):
             store.append_history(f"event {i}")
         mock_runner.run = AsyncMock(return_value=_make_run_result())
@@ -82,25 +82,13 @@ class TestDreamAgentLoopIntegration:
             channel="system", sender_id="dream", chat_id="dream", content=""
         )
         await loop._process_system_message(msg)
-        session = loop.sessions.get_or_create("system:dream")
-        goal = session.metadata.get("goal_state")
-        assert isinstance(goal, dict)
-        assert goal["status"] == "completed"
         assert store.get_last_dream_cursor() == 6
 
-    async def test_completes_goal_state_on_finish(self, loop, mock_runner, store):
-        """Goal should be marked completed when backlog is fully processed."""
-        store.append_history("event 1")
-        mock_runner.run = AsyncMock(return_value=_make_run_result())
-        msg = InboundMessage(
-            channel="system", sender_id="dream", chat_id="dream", content=""
-        )
-        await loop._process_system_message(msg)
-        session = loop.sessions.get_or_create("system:dream")
-        goal = session.metadata.get("goal_state")
-        assert goal["status"] == "completed"
-        assert "completed_at" in goal
-        assert "recap" in goal
+    async def test_goal_tools_registered(self, loop):
+        """Dream tool registry should include long_task and complete_goal."""
+        names = loop.dream._tools.tool_names
+        assert "long_task" in names
+        assert "complete_goal" in names
 
     async def test_noop_when_no_unprocessed_history(self, loop, mock_runner):
         """Dream should not call runner when there's nothing to process."""
@@ -155,7 +143,7 @@ class TestDreamAgentLoopIntegration:
         assert all(e["cursor"] > 0 for e in entries)
 
     async def test_processes_full_backlog_in_one_call(self, loop, mock_runner, store):
-        """Backlog larger than max_batch_size should be fully processed in one call."""
+        """Full backlog should be processed in a single Dream run."""
         for i in range(12):
             store.append_history(f"event {i}")
         mock_runner.run = AsyncMock(return_value=_make_run_result())
@@ -164,7 +152,7 @@ class TestDreamAgentLoopIntegration:
         )
         await loop._process_system_message(msg)
         assert store.get_last_dream_cursor() == 12
-        assert mock_runner.run.call_count == 3  # 5 + 5 + 2
+        assert mock_runner.run.call_count == 1
 
     async def test_single_git_commit_for_multi_batch(self, loop, mock_runner, store):
         """Multi-batch run should collapse into exactly one git commit."""
@@ -187,19 +175,24 @@ class TestDreamAgentLoopIntegration:
         dream_commits = [c for c in commits if c.message.startswith("dream:")]
         assert len(dream_commits) == 1
 
-    async def test_system_prompt_cached(self, loop, mock_runner, store):
-        """Batches within one run should reuse cached system prompt when template mtime unchanged."""
+    async def test_system_prompt_cached_within_batch(self, loop, mock_runner, store):
+        """System prompt should be cached within a single _process_dream_batch call."""
         for i in range(6):
             store.append_history(f"event {i}")
         mock_runner.run = AsyncMock(return_value=_make_run_result())
         msg = InboundMessage(
             channel="system", sender_id="dream", chat_id="dream", content=""
         )
-        await loop._process_system_message(msg)
-        # Two batches (5 + 1), both should use the same cached prompt
-        assert mock_runner.run.call_count == 2
+        session = loop.sessions.get_or_create("system:dream")
+        await loop._process_dream_batch(session, msg)
+        assert mock_runner.run.call_count == 1
         first_prompt = mock_runner.run.call_args_list[0][0][0].initial_messages[0]["content"]
-        second_prompt = mock_runner.run.call_args_list[1][0][0].initial_messages[0]["content"]
+        # Calling _process_dream_batch again with new backlog reuses cached prompt
+        store.append_history("another event")
+        mock_runner.run = AsyncMock(return_value=_make_run_result())
+        await loop._process_dream_batch(session, msg)
+        assert mock_runner.run.call_count == 1
+        second_prompt = mock_runner.run.call_args_list[0][0][0].initial_messages[0]["content"]
         assert second_prompt is first_prompt
 
     async def test_noop_when_empty_backlog(self, loop, mock_runner, store):
@@ -300,18 +293,20 @@ class TestDreamCaps:
 
 
 class TestDreamSkipFiltering:
-    async def test_skip_entries_removed_from_prompt(self, loop, mock_runner, store):
+    async def test_skip_entries_removed_from_batch_file(self, loop, mock_runner, store):
         store.append_history("- [skip] greeting\n- [permanent] User prefers dark mode")
         mock_runner.run = AsyncMock(return_value=_make_run_result())
         msg = InboundMessage(
             channel="system", sender_id="dream", chat_id="dream", content=""
         )
-        await loop._process_system_message(msg)
-        spec = mock_runner.run.call_args[0][0]
-        user_msg = spec.initial_messages[1]["content"]
-        assert "User prefers dark mode" in user_msg
-        assert "[skip]" not in user_msg
-        assert "greeting" not in user_msg
+        session = loop.sessions.get_or_create("system:dream")
+        await loop._process_dream_batch(session, msg)
+        batch_file = store.workspace / ".dream_batch.jsonl"
+        assert batch_file.exists()
+        text = batch_file.read_text(encoding="utf-8")
+        assert "User prefers dark mode" in text
+        assert "[skip]" not in text
+        assert "greeting" not in text
 
 
 class TestDreamFileReferences:

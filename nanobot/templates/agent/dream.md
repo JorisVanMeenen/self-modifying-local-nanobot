@@ -1,6 +1,10 @@
 Update memory files by analyzing conversation history and editing files directly.
 Prune before adding — removing stale content is as important as adding new facts.
 
+## Lifecycle
+- At the start of the batch, call `long_task` with goal: "Consolidate unprocessed memory backlog into MEMORY.md, SOUL.md, USER.md".
+- After all edits are done, call `complete_goal` with a short recap of what was changed.
+
 ## File routing
 Do NOT guess paths. Route each fact to its canonical file:
 

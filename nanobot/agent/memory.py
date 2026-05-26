@@ -7,6 +7,7 @@ import json
 import os
 import re
 import time
+import warnings
 import weakref
 from contextlib import suppress
 from datetime import datetime
@@ -986,10 +987,18 @@ class Dream:
         max_iterations: int = 10,
         max_tool_result_chars: int = 16_000,
         annotate_line_ages: bool = True,
+        sessions: Any | None = None,
+        bus: Any | None = None,
     ):
         self.store = store
         self.provider = provider
         self.model = model
+        warnings.warn(
+            "max_batch_size is deprecated and no longer used; "
+            "Dream now processes the full backlog in a single run.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.max_batch_size = max_batch_size
         self.max_iterations = max_iterations
         self.max_tool_result_chars = max_tool_result_chars
@@ -997,6 +1006,8 @@ class Dream:
         # Default True keeps the #3212 behavior; set False to feed all memory
         # files raw (e.g. if a specific LLM reacts poorly to the `← Nd` suffix).
         self.annotate_line_ages = annotate_line_ages
+        self._sessions = sessions
+        self._bus = bus
         self._runner = AgentRunner(provider)
         self._tools = self._build_tools()
 
@@ -1013,6 +1024,7 @@ class Dream:
         from nanobot.agent.tools.apply_patch import ApplyPatchTool
         from nanobot.agent.tools.file_state import FileStates
         from nanobot.agent.tools.filesystem import EditFileTool, ReadFileTool, WriteFileTool
+        from nanobot.agent.tools.long_task import CompleteGoalTool, LongTaskTool
 
         tools = ToolRegistry()
         workspace = self.store.workspace
@@ -1034,6 +1046,11 @@ class Dream:
         skills_dir = workspace / "skills"
         skills_dir.mkdir(parents=True, exist_ok=True)
         tools.register(WriteFileTool(workspace=workspace, allowed_dir=skills_dir, file_states=file_states))
+        # Register goal lifecycle tools so the Dream agent can report its own
+        # objective start / completion through the normal tool-calling path.
+        if self._sessions is not None:
+            tools.register(LongTaskTool(sessions=self._sessions, bus=self._bus))
+            tools.register(CompleteGoalTool(sessions=self._sessions, bus=self._bus))
         return tools
 
     # -- skill listing --------------------------------------------------------
