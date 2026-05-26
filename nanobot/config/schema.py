@@ -52,7 +52,10 @@ class DreamConfig(Base):
     model_override: str | None = Field(
         default=None,
         validation_alias=AliasChoices("modelOverride", "model", "model_override"),
-    )  # Optional Dream-specific model override. Supports preset names (resolved against model_presets) or raw model identifiers.
+    )  # Optional Dream-specific model override. Preset names are resolved against
+    # model_presets and all preset parameters (provider, model, context_window_tokens)
+    # are applied. Raw model identifiers only switch the model while keeping the main
+    # loop's provider and other settings.
     max_batch_size: int = Field(default=5, ge=1)  # Max history entries per run
     max_iterations: int = Field(default=15, ge=1)  # Max tool calls per Dream run
     # Per-line git-blame age annotation in the Dream prompt (see #3212). Default

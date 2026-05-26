@@ -422,14 +422,21 @@ class AgentLoop:
         logger.info("Runtime model switched for next turn: {} -> {}", old_model, model)
 
     def _configure_dream(self) -> None:
-        """Apply dream.model_override, resolving preset names if needed."""
+        """Apply dream.model_override, resolving preset names if needed.
+
+        Preset names are resolved against model_presets and all parameters
+        (provider, model, context_window_tokens) are applied. Raw model ids
+        only switch the model while keeping the main loop's provider.
+        """
         if not self._dream_model_override:
             self.dream.set_provider(self.provider, self.model)
             return
 
         if self._dream_model_override in self.model_presets:
             snapshot = self._build_model_preset_snapshot(self._dream_model_override)
-            self.dream.set_provider(snapshot.provider, snapshot.model)
+            self.dream.set_provider(
+                snapshot.provider, snapshot.model, snapshot.context_window_tokens
+            )
             return
 
         # Raw model name fallback — same provider, different model
@@ -1244,7 +1251,9 @@ class AgentLoop:
                     model=self.dream.model,
                     max_iterations=self.dream.max_iterations,
                     max_tool_result_chars=self.dream.max_tool_result_chars,
-                    context_window_tokens=self.context_window_tokens,
+                    context_window_tokens=(
+                        self.dream.context_window_tokens or self.context_window_tokens
+                    ),
                     fail_on_tool_error=False,
                 ))
                 elapsed = time.perf_counter() - t_start
@@ -1333,7 +1342,6 @@ class AgentLoop:
                 "recap": f"Memory backlog consolidated ({len(changelog)} change(s)).",
             }
         self.sessions.save(session)
-        session.metadata["_dream_finalized"] = True
         # Notify the user who triggered /dream
         if trigger_channel and trigger_chat_id:
             content = f"Dream completed: {len(changelog)} change(s) committed."

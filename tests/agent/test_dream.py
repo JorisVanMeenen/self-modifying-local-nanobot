@@ -399,6 +399,9 @@ class TestDreamAgeAnnotations:
         assert "← 5d" not in memory_section
 
     async def test_skips_annotation_when_disabled(self, loop, mock_runner, store):
+        store.write_soul("# Soul\n- Helpful")
+        store.write_user("# User\n- Developer")
+        store.write_memory("# Memory\n- Project X active")
         store.append_history("some event")
         mock_runner.run = AsyncMock(return_value=_make_run_result())
         loop.dream.annotate_line_ages = False
@@ -411,6 +414,12 @@ class TestDreamAgeAnnotations:
         spec = mock_runner.run.call_args[0][0]
         user_msg = spec.initial_messages[1]["content"]
         assert "←" not in user_msg
+        # Verify each file section carries its own content, not a fallback
+        soul_section = user_msg.split("## Current SOUL.md")[1].split("## Current USER.md")[0]
+        user_section = user_msg.split("## Current USER.md")[1]
+        assert "Helpful" in soul_section
+        assert "Developer" in user_section
+        assert "Project X active" in user_msg.split("## Current MEMORY.md")[1].split("## Current SOUL.md")[0]
 
     async def test_skips_annotation_on_line_ages_length_mismatch(self, loop, mock_runner, store):
         store.append_history("some event")

@@ -35,4 +35,4 @@ Examples (replace `keyword`):
 - If you notice outdated information, it will be corrected when Dream runs next.
 - Users can view Dream's activity with the `/dream-log` command.
 - Dream runs as a `system` session inside the AgentLoop, triggered by the `/dream` command or cron. Each turn processes one batch; if backlog remains, Dream automatically chains additional turns until complete. All changes are committed in a single git commit.
-- Dream can use a different model than the main agent via `agents.defaults.dream.modelOverride`. Supports preset names or raw model identifiers.
+- Dream can use a different model than the main agent via `agents.defaults.dream.modelOverride`. Preset names apply all preset parameters (provider, model, context_window_tokens); raw model identifiers only switch the model while keeping the main loop's provider and settings.

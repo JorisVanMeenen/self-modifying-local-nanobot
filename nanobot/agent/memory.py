@@ -986,10 +986,12 @@ class Dream:
         max_iterations: int = 10,
         max_tool_result_chars: int = 16_000,
         annotate_line_ages: bool = True,
+        context_window_tokens: int | None = None,
     ):
         self.store = store
         self.provider = provider
         self.model = model
+        self.context_window_tokens = context_window_tokens
         self.max_batch_size = max_batch_size
         self.max_iterations = max_iterations
         self.max_tool_result_chars = max_tool_result_chars
@@ -1000,10 +1002,12 @@ class Dream:
         self._runner = AgentRunner(provider)
         self._tools = self._build_tools()
 
-    def set_provider(self, provider: LLMProvider, model: str) -> None:
+    def set_provider(self, provider: LLMProvider, model: str, context_window_tokens: int | None = None) -> None:
         self.provider = provider
         self.model = model
         self._runner.provider = provider
+        if context_window_tokens is not None:
+            self.context_window_tokens = context_window_tokens
 
     # -- tool registry -------------------------------------------------------
 
