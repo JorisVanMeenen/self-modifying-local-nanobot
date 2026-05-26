@@ -412,6 +412,8 @@ class AgentLoop:
         self.runner.provider = provider
         self.subagents.set_provider(provider, model)
         self.consolidator.set_provider(provider, model, context_window_tokens)
+        self.dream.provider = provider
+        self.dream._runner.provider = provider
         self._configure_dream()
         self._provider_signature = snapshot.signature
         if publish_update and self._runtime_model_publisher is not None:
@@ -424,23 +426,25 @@ class AgentLoop:
     def _configure_dream(self) -> None:
         """Apply dream.model_override, resolving preset names if needed.
 
-        Preset names are resolved against model_presets and all parameters
-        (provider, model, context_window_tokens) are applied. Raw model ids
-        only switch the model while keeping the main loop's provider.
+        Dream always shares the main loop's provider (including FallbackProvider
+        behaviour).  model_override only changes the model string passed to the
+        LLM — it never swaps provider, context_window_tokens, or any other
+        runtime parameter.
+
+        If the override value matches a preset name, only the preset's *model*
+        field is used.  Raw model identifiers are used as-is.
         """
         if not self._dream_model_override:
-            self.dream.set_provider(self.provider, self.model)
+            self.dream.model = self.model
             return
 
         if self._dream_model_override in self.model_presets:
-            snapshot = self._build_model_preset_snapshot(self._dream_model_override)
-            self.dream.set_provider(
-                snapshot.provider, snapshot.model, snapshot.context_window_tokens
-            )
+            preset = self.model_presets[self._dream_model_override]
+            self.dream.model = preset.model
             return
 
-        # Raw model name fallback — same provider, different model
-        self.dream.set_provider(self.provider, self._dream_model_override)
+        # Raw model identifier — used as-is, same provider
+        self.dream.model = self._dream_model_override
 
     def _refresh_provider_snapshot(self) -> None:
         if self._provider_snapshot_loader is None:
@@ -1251,9 +1255,7 @@ class AgentLoop:
                     model=self.dream.model,
                     max_iterations=self.dream.max_iterations,
                     max_tool_result_chars=self.dream.max_tool_result_chars,
-                    context_window_tokens=(
-                        self.dream.context_window_tokens or self.context_window_tokens
-                    ),
+                    context_window_tokens=self.context_window_tokens,
                     fail_on_tool_error=False,
                 ))
                 elapsed = time.perf_counter() - t_start

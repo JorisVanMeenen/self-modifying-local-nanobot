@@ -321,7 +321,7 @@ class TestDreamModelOverride:
         assert loop.dream.provider is provider
 
     def test_dream_preset_override(self, tmp_path) -> None:
-        cheap_provider = _provider("openai/gpt-4.1-mini", max_tokens=2048)
+        base_provider = _provider("base-model")
         preset = ModelPresetConfig(
             model="openai/gpt-4.1-mini",
             provider="openai",
@@ -330,27 +330,21 @@ class TestDreamModelOverride:
         )
         loop = AgentLoop(
             bus=MessageBus(),
-            provider=_provider("base-model"),
+            provider=base_provider,
             workspace=tmp_path,
             model="base-model",
             context_window_tokens=1000,
             model_presets={"cheap": preset},
             dream_model_override="cheap",
-            preset_snapshot_loader=lambda _name: ProviderSnapshot(
-                provider=cheap_provider,
-                model=preset.model,
-                context_window_tokens=preset.context_window_tokens,
-                signature=("cheap", preset.model),
-            ),
         )
         assert loop.dream.model == "openai/gpt-4.1-mini"
-        assert loop.dream.provider is cheap_provider
-        assert loop.dream._runner.provider is cheap_provider
+        # Dream always shares the main loop's provider; override only changes model
+        assert loop.dream.provider is base_provider
+        assert loop.dream._runner.provider is base_provider
 
     def test_dream_override_survives_main_preset_switch(self, tmp_path) -> None:
         base_provider = _provider("base-model")
         fast_provider = _provider("openai/gpt-4.1", max_tokens=4096)
-        cheap_provider = _provider("openai/gpt-4.1-mini", max_tokens=2048)
         loop = AgentLoop(
             bus=MessageBus(),
             provider=base_provider,
@@ -363,15 +357,15 @@ class TestDreamModelOverride:
             },
             dream_model_override="cheap",
             preset_snapshot_loader=lambda name: ProviderSnapshot(
-                provider=fast_provider if name == "fast" else cheap_provider,
+                provider=fast_provider,
                 model="openai/gpt-4.1" if name == "fast" else "openai/gpt-4.1-mini",
                 context_window_tokens=32_768 if name == "fast" else 128_000,
                 signature=(name, "model"),
             ),
         )
-        # Initially dream is on cheap
+        # Initially dream is on cheap model but shares main provider
         assert loop.dream.model == "openai/gpt-4.1-mini"
-        assert loop.dream.provider is cheap_provider
+        assert loop.dream.provider is base_provider
 
         # Switch main preset to fast
         loop.set_model_preset("fast")
@@ -380,7 +374,7 @@ class TestDreamModelOverride:
         assert loop.model == "openai/gpt-4.1"
         assert loop.provider is fast_provider
 
-        # Dream should still be on cheap override
+        # Dream should still be on cheap model, but provider follows main loop
         assert loop.dream.model == "openai/gpt-4.1-mini"
-        assert loop.dream.provider is cheap_provider
-        assert loop.dream._runner.provider is cheap_provider
+        assert loop.dream.provider is fast_provider
+        assert loop.dream._runner.provider is fast_provider
