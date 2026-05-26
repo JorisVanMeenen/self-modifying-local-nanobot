@@ -431,8 +431,9 @@ class AgentLoop:
         LLM — it never swaps provider, context_window_tokens, or any other
         runtime parameter.
 
-        If the override value matches a preset name, only the preset's *model*
-        field is used.  Raw model identifiers are used as-is.
+        Preset names are the recommended way to specify a Dream model; raw model
+        identifiers still work but are deprecated and will be removed in a future
+        release.
         """
         if not self._dream_model_override:
             self.dream.model = self.model
@@ -443,7 +444,13 @@ class AgentLoop:
             self.dream.model = preset.model
             return
 
-        # Raw model identifier — used as-is, same provider
+        # Raw model identifier — used as-is, same provider (deprecated)
+        logger.warning(
+            "dream.model_override='{}' is not a preset name. "
+            "Raw model identifiers in model_override are deprecated; "
+            "define a preset and use its name instead.",
+            self._dream_model_override,
+        )
         self.dream.model = self._dream_model_override
 
     def _refresh_provider_snapshot(self) -> None:
