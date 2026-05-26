@@ -445,12 +445,14 @@ class AgentLoop:
             return
 
         # Raw model identifier — used as-is, same provider (deprecated)
-        logger.warning(
-            "dream.model_override='{}' is not a preset name. "
-            "Raw model identifiers in model_override are deprecated; "
-            "define a preset and use its name instead.",
-            self._dream_model_override,
-        )
+        if not getattr(self, "_dream_override_warned", False):
+            logger.warning(
+                "dream.model_override='{}' is not a preset name. "
+                "Raw model identifiers in model_override are deprecated; "
+                "define a preset and use its name instead.",
+                self._dream_model_override,
+            )
+            self._dream_override_warned = True
         self.dream.model = self._dream_model_override
 
     def _refresh_provider_snapshot(self) -> None:
@@ -1215,6 +1217,9 @@ class AgentLoop:
             raw_memory = self.dream.store.read_memory() or "(empty)"
             raw_soul = self.dream.store.read_soul() or "(empty)"
             raw_user = self.dream.store.read_user() or "(empty)"
+            memory_lines = raw_memory.splitlines()
+            soul_lines = raw_soul.splitlines()
+            user_lines = raw_user.splitlines()
             memory_path = workspace / "memory" / "MEMORY.md"
             soul_path = workspace / "SOUL.md"
             user_path = workspace / "USER.md"
@@ -1223,11 +1228,11 @@ class AgentLoop:
                 f"## Current Date\n{current_date}\n\n"
                 f"## Memory Files (read before editing)\n"
                 f"- MEMORY.md: {memory_path} "
-                f"({len(raw_memory)} chars, {len(raw_memory.splitlines())} lines)\n"
+                f"({len(raw_memory)} chars, {len(memory_lines)} lines)\n"
                 f"- SOUL.md: {soul_path} "
-                f"({len(raw_soul)} chars, {len(raw_soul.splitlines())} lines)\n"
+                f"({len(raw_soul)} chars, {len(soul_lines)} lines)\n"
                 f"- USER.md: {user_path} "
-                f"({len(raw_user)} chars, {len(raw_user.splitlines())} lines)"
+                f"({len(raw_user)} chars, {len(user_lines)} lines)"
             )
 
             existing_skills = self.dream._list_existing_skills()
