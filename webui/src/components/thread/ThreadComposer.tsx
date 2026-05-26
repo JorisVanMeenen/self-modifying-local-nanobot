@@ -1239,7 +1239,7 @@ export function ThreadComposer({
         <div
           className={cn(
             "flex items-center justify-between gap-2",
-            isHero ? cn("px-4", showProjectPicker ? "pb-3" : "pb-4") : "px-3 pb-2",
+            isHero ? cn("px-4", showProjectPicker ? "pb-2" : "pb-4") : "px-3 pb-2",
           )}
         >
           <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -1372,16 +1372,16 @@ export function ThreadComposer({
           </div>
         </div>
         {showProjectPicker ? (
-          <div className="flex items-center border-t border-border/35 px-4 py-3">
+          <div className="flex items-center border-t border-border/40 bg-muted/28 px-4 py-2 dark:bg-muted/18">
             <button
               type="button"
               disabled={disabled || workspaceScopeDisabled}
               aria-label={t("thread.composer.workspace.projectAria")}
               onClick={onWorkspaceProjectClick}
               className={cn(
-                "inline-flex h-8 max-w-[18rem] items-center gap-2 rounded-lg px-1.5",
-                "text-[12.5px] font-medium text-muted-foreground transition-colors",
-                "hover:bg-muted/35 hover:text-foreground disabled:pointer-events-none disabled:opacity-55",
+                "inline-flex h-7 max-w-[18rem] items-center gap-2 rounded-lg px-1.5",
+                "text-[12px] font-medium text-muted-foreground/90 transition-colors",
+                "hover:bg-background/55 hover:text-foreground disabled:pointer-events-none disabled:opacity-55",
                 currentProjectScope && "text-foreground/82",
               )}
             >
