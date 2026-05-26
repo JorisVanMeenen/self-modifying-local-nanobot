@@ -10,7 +10,7 @@ from nanobot.webui.workspaces import (
 
 
 def test_workspace_state_defaults_when_file_missing(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr("nanobot.config.paths.get_data_dir", lambda: tmp_path)
+    monkeypatch.setattr("nanobot.webui.workspaces.get_webui_dir", lambda: tmp_path / "webui")
 
     state = read_webui_workspace_state()
 
@@ -20,7 +20,7 @@ def test_workspace_state_defaults_when_file_missing(tmp_path, monkeypatch) -> No
 
 
 def test_workspace_state_discards_missing_projects(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr("nanobot.config.paths.get_data_dir", lambda: tmp_path)
+    monkeypatch.setattr("nanobot.webui.workspaces.get_webui_dir", lambda: tmp_path / "webui")
     project = tmp_path / "project"
     project.mkdir()
     path = webui_workspace_state_path()
@@ -57,7 +57,7 @@ def test_workspace_state_discards_missing_projects(tmp_path, monkeypatch) -> Non
 
 
 def test_workspace_payload_is_config_data_dir_scoped(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr("nanobot.config.paths.get_data_dir", lambda: tmp_path)
+    monkeypatch.setattr("nanobot.webui.workspaces.get_webui_dir", lambda: tmp_path / "webui")
     default = tmp_path / "default"
     project = tmp_path / "project"
     default.mkdir()
@@ -81,7 +81,7 @@ def test_workspace_payload_hides_mutable_state_when_controls_unavailable(
     tmp_path,
     monkeypatch,
 ) -> None:
-    monkeypatch.setattr("nanobot.config.paths.get_data_dir", lambda: tmp_path)
+    monkeypatch.setattr("nanobot.webui.workspaces.get_webui_dir", lambda: tmp_path / "webui")
     default = tmp_path / "default"
     project = tmp_path / "project"
     default.mkdir()

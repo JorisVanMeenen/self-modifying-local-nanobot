@@ -59,6 +59,14 @@ def bus() -> MagicMock:
     return b
 
 
+@pytest.fixture(autouse=True)
+def isolate_webui_workspace_state(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "nanobot.webui.workspaces.get_webui_dir",
+        lambda: tmp_path / "webui",
+    )
+
+
 async def _http_get(url: str, headers: dict[str, str] | None = None) -> httpx.Response:
     """Run GET in a thread to avoid blocking the asyncio loop shared with websockets."""
     return await asyncio.to_thread(

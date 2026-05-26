@@ -67,7 +67,7 @@ export function WorkspaceProjectDialog({
       seen.add(project.project_path);
       rows.push({ ...project, kind: "recent" });
     }
-    return rows.slice(0, 8);
+    return rows.slice(0, 5);
   }, [defaultScope, recentProjects]);
 
   const applyProject = (
@@ -100,7 +100,7 @@ export function WorkspaceProjectDialog({
         </DialogHeader>
 
         <div className="space-y-2.5 px-5 pb-5">
-          <section className="overflow-hidden rounded-[18px] border border-border/50 bg-card">
+          <section className="max-h-[22rem] overflow-y-auto rounded-[18px] border border-border/50 bg-card">
             {projects.map((project) => {
               const selected = hasExplicitScope && current?.project_path === project.project_path;
               return (
