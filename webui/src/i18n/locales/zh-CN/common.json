@@ -716,12 +716,12 @@
   },
   "workspace": {
     "dialog": {
-      "title": "选择项目",
-      "description": "为这个 WebUI 对话绑定项目目录，并选择 agent 的本地访问权限。",
+      "title": "项目",
+      "description": "为这个对话选择一个项目目录。",
       "projects": "项目",
       "defaultProject": "默认工作区",
       "access": "访问权限",
-      "manual": "手动路径",
+      "manual": "粘贴路径",
       "manualPlaceholder": "/Users/name/project",
       "usePath": "使用路径",
       "absolutePathRequired": "请输入这台机器上的绝对文件夹路径。",

@@ -35,7 +35,7 @@ describe("WorkspaceProjectDialog", () => {
     renderDialog();
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("Choose Project")).toBeInTheDocument();
+    expect(screen.getByText("Project")).toBeInTheDocument();
     expect(screen.getByText("Default workspace")).toBeInTheDocument();
     expect(screen.getByText("project-alpha")).toBeInTheDocument();
   });
@@ -55,6 +55,7 @@ describe("WorkspaceProjectDialog", () => {
   it("keeps manual paths honest before sending them to the gateway", () => {
     const { onApply } = renderDialog();
 
+    fireEvent.click(screen.getByText("Paste path"));
     fireEvent.change(screen.getByPlaceholderText("/Users/name/project"), {
       target: { value: "relative/project" },
     });

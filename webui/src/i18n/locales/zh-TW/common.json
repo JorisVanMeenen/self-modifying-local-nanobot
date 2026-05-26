@@ -716,12 +716,12 @@
   },
   "workspace": {
     "dialog": {
-      "title": "選擇專案",
-      "description": "為這個 WebUI 對話綁定專案目錄，並選擇 agent 的本機存取權限。",
+      "title": "專案",
+      "description": "為這個對話選擇一個專案目錄。",
       "projects": "專案",
       "defaultProject": "預設工作區",
       "access": "存取權限",
-      "manual": "手動路徑",
+      "manual": "貼上路徑",
       "manualPlaceholder": "/Users/name/project",
       "usePath": "使用路徑",
       "absolutePathRequired": "請輸入這台機器上的絕對資料夾路徑。",

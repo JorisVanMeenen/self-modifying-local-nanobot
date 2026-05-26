@@ -716,12 +716,12 @@
   },
   "workspace": {
     "dialog": {
-      "title": "Choose Project",
-      "description": "Bind this WebUI chat to a project folder and choose how much local access the agent has.",
+      "title": "プロジェクト",
+      "description": "このチャットで使うフォルダーを選択します。",
       "projects": "Projects",
       "defaultProject": "Default workspace",
       "access": "Access",
-      "manual": "Manual path",
+      "manual": "パスを貼り付け",
       "manualPlaceholder": "/Users/name/project",
       "usePath": "Use Path",
       "absolutePathRequired": "Enter an absolute folder path on this machine.",
