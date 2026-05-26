@@ -4,10 +4,16 @@ x-common-config: &common-config
     dockerfile: Dockerfile
   volumes:
     - ~/.nanobot:/home/nanobot/.nanobot
+    - ./nanobot:/app/nanobot
+    - ./bridge:/app/bridge
+    - ./webui:/app/webui 
   cap_drop:
     - ALL
   cap_add:
     - SYS_ADMIN
+    - SETUID
+    - SETGID
+    - DAC_OVERRIDE      
   security_opt:
     - apparmor=unconfined
     - seccomp=unconfined

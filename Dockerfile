@@ -34,10 +34,13 @@ RUN git config --global --add url."https://github.com/".insteadOf ssh://git@gith
     npm install && npm run build
 WORKDIR /app
 
-# Create non-root user and config directory
+# Create root user and config directory
 RUN useradd -m -u 1000 -s /bin/bash nanobot && \
     mkdir -p /home/nanobot/.nanobot && \
     chown -R nanobot:nanobot /home/nanobot /app
+RUN apt-get update && apt-get install -y sudo && \
+    echo "nanobot ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN sed -i 's/\r$//' /usr/local/bin/entrypoint.sh && chmod +x /usr/local/bin/entrypoint.sh
