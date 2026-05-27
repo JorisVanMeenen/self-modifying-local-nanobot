@@ -280,6 +280,19 @@ export interface SettingsPayload {
     temperature: number;
     reasoning_effort: string | null;
   }>;
+  context: {
+    master_toggle: boolean;
+    custom_prompt: string;
+    include_identity: boolean;
+    include_agents: boolean;
+    include_soul: boolean;
+    include_user: boolean;
+	include_tool_usage: boolean;
+    include_memory: boolean;
+    include_skills: boolean;
+    include_recent_history: boolean;
+	include_session_summary: boolean;
+  };
   providers: Array<{
     name: string;
     label: string;
@@ -560,6 +573,20 @@ export interface ModelConfigurationUpdate {
   provider?: string;
   model?: string;
   contextWindowTokens?: number;
+}
+
+export interface ContextSettingsUpdate {
+  masterToggle?: boolean;
+  customPrompt?: string;
+  includeIdentity?: boolean;
+  includeAgents?: boolean;
+  includeSoul?: boolean;
+  includeUser?: boolean;
+  includeToolUsage?: boolean;
+  includeMemory?: boolean;
+  includeSkills?: boolean;
+  includeRecentHistory?: boolean;
+  includeSessionSummary?: boolean;
 }
 
 export interface ProviderSettingsUpdate {
