@@ -6,7 +6,8 @@ x-common-config: &common-config
     - ~/.nanobot:/home/nanobot/.nanobot
     - ./nanobot:/app/nanobot
     - ./bridge:/app/bridge
-    - ./webui:/app/webui 
+    - ./webui:/app/webui
+    - ./tests:/app/tests 
   cap_drop:
     - ALL
   cap_add:
