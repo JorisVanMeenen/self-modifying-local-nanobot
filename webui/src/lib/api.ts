@@ -360,6 +360,7 @@ export async function updateContextSettings(
   if (update.includeSkills !== undefined) query.set("include_skills", String(update.includeSkills));
   if (update.includeRecentHistory !== undefined) query.set("include_recent_history", String(update.includeRecentHistory));
   if (update.includeSessionSummary !== undefined) query.set("include_session_summary", String(update.includeSessionSummary));
+  if (update.deferredToggle !== undefined) query.set("deferred_toggle", String(update.deferredToggle));
 
   return request<SettingsPayload>(
     `${base}/api/settings/context/update?${query}`,

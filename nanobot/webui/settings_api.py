@@ -707,6 +707,7 @@ def settings_payload(
             "include_skills": config.context.include_skills,
             "include_recent_history": config.context.include_recent_history,
             "include_session_summary": config.context.include_session_summary,
+            "deferred_toggle": config.context.deferred_toggle,
         },
         "providers": providers,
         "web_search": {
@@ -939,6 +940,7 @@ def update_context_settings(query: QueryParams) -> dict[str, Any]:
     _update_bool("include_skills", "includeSkills")
     _update_bool("include_recent_history", "includeRecentHistory")
     _update_bool("include_session_summary", "includeSessionSummary")
+    _update_bool("deferred_toggle", "deferredToggle")
 
     custom_prompt = _query_first_alias(query, "custom_prompt", "customPrompt")
     if custom_prompt is not None:

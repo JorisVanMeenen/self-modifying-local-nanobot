@@ -392,6 +392,7 @@ export function SettingsView({
     includeSkills: true,
     includeRecentHistory: true,
 	includeSessionSummary: true,
+	deferredToggle: true,
   });
   const [imageGenerationForm, setImageGenerationForm] = useState<ImageGenerationSettingsUpdate>({
     enabled: false,
@@ -470,6 +471,7 @@ export function SettingsView({
       includeSkills: payload.context.include_skills,
       includeRecentHistory: payload.context.include_recent_history,
 	  includeSessionSummary: payload.context.include_session_summary,
+	  deferredToggle: payload.context.deferred_toggle,
     });
     setImageGenerationForm({
       enabled: payload.image_generation.enabled,
@@ -4222,63 +4224,6 @@ function AdvancedSettings({
         </SettingsGroup>
       </section>
 
-      <section>
-        <SettingsSectionTitle>{tx("settings.sections.integrations", "Integrations")}</SettingsSectionTitle>
-        <SettingsGroup>
-          <ReadOnlyRow title={tx("settings.rows.mcpServers", "MCP servers")} value={String(settings.advanced.mcp_server_count)} />
-          <ReadOnlyRow title={tx("settings.rows.pathAppend", "PATH append")} value={settings.advanced.exec_path_append_set ? tx("settings.values.configured", "Configured") : tx("settings.values.notConfigured", "Not configured")} />
-          <SettingsRow
-            title={tx("settings.rows.localServiceAccess", "Local Service Access")}
-            description={tx(
-              isNativeHostSurface ? "settings.help.localServiceAccessNative" : "settings.help.localServiceAccess",
-              isNativeHostSurface
-                ? "Allow Full Access shell commands to reach services on this Mac."
-                : "Allow Full Access shell commands to reach localhost services.",
-            )}
-          >
-            <ToggleButton
-              checked={form.webuiAllowLocalServiceAccess}
-              onChange={(webuiAllowLocalServiceAccess) =>
-                onChangeForm((prev) => ({ ...prev, webuiAllowLocalServiceAccess }))
-              }
-              ariaLabel={tx("settings.rows.localServiceAccess", "Local Service Access")}
-              label={form.webuiAllowLocalServiceAccess ? tx("settings.values.on", "On") : tx("settings.values.off", "Off")}
-            />
-          </SettingsRow>
-          <SettingsRow
-            title={tx("settings.rows.webuiDefaultAccess", "Default access")}
-            description={tx(
-              isNativeHostSurface ? "settings.help.webuiDefaultAccessNative" : "settings.help.webuiDefaultAccess",
-              isNativeHostSurface
-                ? "Used by native chats without a project-specific permission."
-                : "Used by web chats without a project-specific permission.",
-            )}
-          >
-            <SegmentedControl
-              value={form.webuiDefaultAccessMode}
-              options={[
-                { value: "default", label: tx("settings.values.defaultPermission", "Default Permission") },
-                { value: "full", label: tx("settings.values.fullAccess", "Full Access") },
-              ]}
-              onChange={(webuiDefaultAccessMode) =>
-                onChangeForm((prev) => ({
-                  ...prev,
-                  webuiDefaultAccessMode: webuiDefaultAccessMode as WebuiDefaultAccessMode,
-                }))
-              }
-            />
-          </SettingsRow>
-          <RestartSettingsFooter
-            dirty={dirty}
-            saving={saving}
-            pendingRestart={requiresRestartPending}
-            onSave={onSave}
-            onRestart={onRestart}
-            isRestarting={isRestarting}
-          />
-        </SettingsGroup>
-      </section>
-
       <p className="max-w-3xl px-1 text-sm leading-6 text-muted-foreground">
         {tx(
           "settings.help.securityManagedControls",
@@ -4305,6 +4250,7 @@ function ContextSettings({
   const { t } = useTranslation();
   const tx = (key: string, fallback: string) => t(key, { defaultValue: fallback });
   const masterEnabled = form.masterToggle ?? true;
+  const deferredEnabled = form.deferredToggle ?? true;
 
   const dirty =
     form.masterToggle !== settings.context.master_toggle ||
@@ -4317,7 +4263,8 @@ function ContextSettings({
     form.includeMemory !== settings.context.include_memory ||
     form.includeSkills !== settings.context.include_skills ||
     form.includeRecentHistory !== settings.context.include_recent_history ||
-	form.includeSessionSummary !== settings.context.include_session_summary;
+	form.includeSessionSummary !== settings.context.include_session_summary ||
+	form.deferredToggle !== settings.context.deferred_toggle;
 
   const ToggleRow = ({ label, stateKey }: { label: string, stateKey: keyof ContextSettingsUpdate }) => (
     <SettingsRow title={label}>
@@ -4371,6 +4318,17 @@ function ContextSettings({
 			<ToggleRow label="Session Summary" stateKey="includeSessionSummary" />
           </div>
         </div>
+		
+		<SettingsRow
+          title={tx("settings.context.deferredToggle", "Deferred Tools Toggle")}
+          description={tx("settings.context.deferredToggleDesc", "Enable or disable the deferred tools feature.")}
+        >
+          <ToggleButton
+            checked={deferredEnabled}
+            onChange={(checked) => onChangeForm((prev) => ({ ...prev, deferredToggle: checked }))}
+            label={deferredEnabled ? "On" : "Off"}
+          />
+        </SettingsRow>
 
         <SettingsFooter
           dirty={dirty}

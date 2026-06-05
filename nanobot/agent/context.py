@@ -4,7 +4,7 @@ import base64
 import mimetypes
 import platform
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, Sequence, TYPE_CHECKING
 
 from nanobot.agent.memory import MemoryStore
 from nanobot.agent.skills import SkillsLoader
@@ -12,6 +12,7 @@ from nanobot.agent.tools import mcp as mcp_tools
 from nanobot.agent.tools.registry import ToolRegistry
 from nanobot.apps.cli import utils as cli_app_utils
 from nanobot.bus.events import InboundMessage
+from nanobot.config.loader import load_config
 from nanobot.session.goal_state import goal_state_runtime_lines
 from nanobot.utils.helpers import (
     current_time_str,
@@ -21,7 +22,8 @@ from nanobot.utils.helpers import (
 )
 from nanobot.utils.prompt_templates import render_template
 
-from nanobot.config.loader import load_config
+if TYPE_CHECKING:
+    from nanobot.agent.tools.registry import ToolRegistry
 
 
 def session_extra(metadata: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -64,15 +66,17 @@ class ContextBuilder:
         self.timezone = timezone
         self.memory = MemoryStore(workspace)
         self.skills = SkillsLoader(workspace, disabled_skills=set(disabled_skills) if disabled_skills else None)
+        self.tool_registry: ToolRegistry | None = None
 
     def build_system_prompt(
         self,
         skill_names: list[str] | None = None,
         channel: str | None = None,
         session_summary: str | None = None,
+        deferred_tools_info: str | None = None,
         workspace: Path | None = None,
     ) -> str:
-        """Build the system prompt from identity, bootstrap files, memory, and skills."""
+        """Build the system prompt from identity, bootstrap files, memory, skills and tools."""
         root = workspace or self.workspace
         config = load_config().context
         parts = []
@@ -85,12 +89,15 @@ class ContextBuilder:
         if master_on and config.include_identity:
             parts.append(self._get_identity(channel=channel, workspace=root))
 
-        bootstrap = self._load_bootstrap_files(root, config, master_on)
+        bootstrap = self._load_bootstrap_files(config, master_on, root)
         if bootstrap:
             parts.append(bootstrap)
             
         if master_on and config.include_tool_usage:
             parts.append(render_template("agent/tool_contract.md"))
+            
+        if deferred_tools_info:
+            parts.append(render_template("agent/tools_section.md", tools_summary=deferred_tools_info))
 
         if master_on and config.include_memory:
             memory = self.memory.get_memory_context()
@@ -171,7 +178,7 @@ class ContextBuilder:
 
         return _to_blocks(left) + _to_blocks(right)
 
-    def _load_bootstrap_files(self, workspace: Path | None = None, config: Any, master_on: bool) -> str:
+    def _load_bootstrap_files(self, config: Any, master_on: bool, workspace: Path | None = None) -> str:
         """Load all bootstrap files from workspace."""
         parts = []
         root = workspace or self.workspace
@@ -236,6 +243,16 @@ class ContextBuilder:
             supplemental_lines=extra or None,
         )
         user_content = self._build_user_content(current_message, media)
+        
+        deferred_tools_info: str | None = None
+        if self.tool_registry is not None:
+            query = (
+                current_message.strip()
+                if isinstance(current_message, str) and current_message.strip()
+                else None
+            )
+            summary = self.tool_registry.build_deferred_tools_summary(query=query)
+            deferred_tools_info = summary or None
 
         # Merge runtime context and user content into a single user message
         # to avoid consecutive same-role messages that some providers reject.
@@ -252,6 +269,7 @@ class ContextBuilder:
                     skill_names,
                     channel=channel,
                     session_summary=session_summary,
+                    deferred_tools_info=deferred_tools_info,
                     workspace=root,
                 ),
             },

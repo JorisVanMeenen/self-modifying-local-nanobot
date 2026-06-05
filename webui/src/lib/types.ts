@@ -292,6 +292,7 @@ export interface SettingsPayload {
     include_skills: boolean;
     include_recent_history: boolean;
 	include_session_summary: boolean;
+	deferred_toggle: boolean;
   };
   providers: Array<{
     name: string;
@@ -587,6 +588,7 @@ export interface ContextSettingsUpdate {
   includeSkills?: boolean;
   includeRecentHistory?: boolean;
   includeSessionSummary?: boolean;
+  deferredToggle?: boolean;
 }
 
 export interface ProviderSettingsUpdate {

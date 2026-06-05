@@ -16,6 +16,7 @@ from websockets.http11 import Request as WsRequest
 from websockets.http11 import Response
 
 from nanobot.agent.tools.mcp import request_mcp_reload
+from nanobot.agent.tools.registry import get_active_registry
 from nanobot.bus.queue import MessageBus
 from nanobot.webui.cli_apps_api import cli_apps_action, cli_apps_payload
 from nanobot.webui.mcp_presets_api import mcp_presets_settings_action
@@ -264,10 +265,31 @@ class WebUISettingsRouter:
     def _handle_settings_context_update(self, request: WsRequest) -> Response:
         if not self._authorized(request):
             return self._unauthorized()
+        self.logger.info(request)
+        query = self._query(request)
+        self.logger.info(query)
         try:
-            payload = update_context_settings(self._query(request))
+            payload = update_context_settings(query)
+            self.logger.info(payload)
         except WebUISettingsError as e:
             return self._error_response(e.status, e.message)
+
+        registry = get_active_registry()
+        self.logger.info(registry)
+        if registry is not None:
+            # Extract the fully resolved value directly from the payload
+            # rather than guessing at HTTP query strings.
+            new_val = None
+            if "context" in payload and "deferred_toggle" in payload["context"]:
+                new_val = payload["context"]["deferred_toggle"]
+            elif "deferred_toggle" in payload:
+                new_val = payload["deferred_toggle"]
+            self.logger.info(new_val)
+            if isinstance(new_val, bool):
+                registry.reload(new_deferred_toggle=new_val)
+            else:
+                registry.reload()
+
         return self._json_response(payload)
 
     def _handle_settings_image_generation_update(self, request: WsRequest) -> Response:

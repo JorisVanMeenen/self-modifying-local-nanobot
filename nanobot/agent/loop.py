@@ -328,6 +328,11 @@ class AgentLoop:
         if model_preset:
             self.set_model_preset(model_preset, publish_update=False)
         self._register_default_tools()
+        if self.tools.has("tool_loader"):
+            tool_obj = self.tools.get("tool_loader")
+            if tool_obj is not None:
+                tool_obj._registry = self.tools
+        self.context.tool_registry = self.tools
         self._runtime_vars: dict[str, Any] = {}
         self._current_iteration: int = 0
         self.commands = CommandRouter()

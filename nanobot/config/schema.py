@@ -323,6 +323,7 @@ class ContextConfig(Base):
     include_skills: bool = True
     include_recent_history: bool = True
     include_session_summary: bool = True
+    deferred_toggle: bool = True
 
 class Config(BaseSettings):
     """Root configuration for nanobot."""
